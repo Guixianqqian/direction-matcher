@@ -157,7 +157,7 @@ const Renderer = {
         <div class="features">
           <div class="feature-item">
             <span class="feature-icon">📊</span>
-            <span class="feature-text">15 个轻资产赛道</span>
+            <span class="feature-text">25 个轻资产赛道</span>
           </div>
           <div class="feature-item">
             <span class="feature-icon">🎯</span>
@@ -472,11 +472,10 @@ const Renderer = {
       </div>
     `;
 
-    Analytics.track('paywall_view');
-
     // 付费按钮
     const payBtn = document.getElementById('payBtn');
     if (payBtn) {
+      Analytics.track('paywall_view');
       payBtn.addEventListener('click', () => { Analytics.track('pay_click'); this.showPayModal(); });
     }
 

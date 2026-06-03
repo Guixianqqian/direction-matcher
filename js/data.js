@@ -548,6 +548,15 @@ const TRACKS = [
   },
 ];
 
+// === 行业 → 赛道亲和力映射 ===
+const INDUSTRY_AFFINITY = {
+  'tech':        ['micro-saas', 'ai-consultant', 'indie-dev', 'newsletter', 'content-writer', 'xiaohongshu-kol', 'freelancer', 'knowledge-course', 'virtual-products', 'paid-community'],
+  'traditional': ['cross-border-ecom', 'dropshipping', 'second-hand', 'street-food', 'handcraft', 'recycling', 'housekeeping', 'ride-delivery', 'pet-service'],
+  'finance':     ['ai-consultant', 'knowledge-course', 'paid-community', 'freelancer', 'skill-coach', 'cross-border-ecom'],
+  'education':   ['newsletter', 'knowledge-course', 'skill-coach', 'paid-community', 'content-writer', 'content-video', 'content-clip'],
+  'none':        [], // 无特定行业经验，对所有赛道中立
+};
+
 // === 匹配算法 ===
 function calculateMatch(userProfile, track) {
   let totalScore = 0;
@@ -572,7 +581,32 @@ function calculateMatch(userProfile, track) {
   const motivationBonus = track.motivationMatch.includes(userProfile.motivation) ? 10 : 0;
   maxScore += 10;
 
-  const matchPercent = Math.round((totalScore + motivationBonus) / maxScore * 100);
+  // 行业经验加分（最多 +5）
+  let industryBonus = 0;
+  if (userProfile.industryExp && userProfile.industryExp !== 'none') {
+    const affinityList = INDUSTRY_AFFINITY[userProfile.industryExp] || [];
+    industryBonus = affinityList.includes(track.id) ? 5 : 0;
+  }
+  maxScore += 5;
+
+  // 学习方式加分（最多 +5）
+  let learnStyleBonus = 0;
+  const ls = userProfile.learnStyle;
+  const lw = track.profile.learningWillingness;
+  if (ls === 'doing' && lw <= 2) {
+    learnStyleBonus = 5; // 边干边学 → 低门槛赛道
+  } else if (ls === 'structured' && lw >= 4) {
+    learnStyleBonus = 5; // 系统学习 → 高技术壁垒赛道
+  } else if (ls === 'avoid' && lw <= 1) {
+    learnStyleBonus = 5; // 不想学新东西 → 极低技能赛道
+  } else if (ls === 'doing' && lw <= 4) {
+    learnStyleBonus = 2; // 部分匹配
+  } else if (ls === 'structured' && lw >= 2) {
+    learnStyleBonus = 2; // 部分匹配
+  }
+  maxScore += 5;
+
+  const matchPercent = Math.round((totalScore + motivationBonus + industryBonus + learnStyleBonus) / maxScore * 100);
 
   return {
     track,
@@ -629,12 +663,36 @@ function generateMatchDetails(userProfile, track, score) {
     reasons.push(motivationMap[userProfile.motivation] || '与你的核心驱动力一致');
   }
 
+  // 行业经验匹配
+  if (userProfile.industryExp && userProfile.industryExp !== 'none') {
+    const affinityList = INDUSTRY_AFFINITY[userProfile.industryExp] || [];
+    if (affinityList.includes(track.id)) {
+      const industryNameMap = {
+        'tech': '互联网/科技行业',
+        'traditional': '传统实业',
+        'finance': '金融行业',
+        'education': '教育/培训行业',
+      };
+      reasons.push(`你的${industryNameMap[userProfile.industryExp] || ''}背景是这个赛道的天然优势`);
+    }
+  }
+
   // 技术态度匹配
   if (userProfile.learningWillingness >= 4 && track.profile.learningWillingness >= 4) {
     reasons.push('你喜欢尝鲜，这个赛道能充分发挥 AI 杠杆');
   }
 
-  return reasons.slice(0, 4); // 最多 4 条理由
+  // 学习方式匹配
+  const ls = userProfile.learnStyle;
+  if (ls === 'doing' && track.profile.learningWillingness <= 2) {
+    reasons.push('适合你"边干边学"的风格，启动门槛低');
+  } else if (ls === 'structured' && track.profile.learningWillingness >= 4) {
+    reasons.push('适合你"系统学习"的风格，壁垒高但护城河深');
+  } else if (ls === 'avoid' && track.profile.learningWillingness <= 1) {
+    reasons.push('无需学新技能，直接用现有能力变现');
+  }
+
+  return reasons.slice(0, 5); // 最多 5 条理由（从4条升级）
 }
 
 function matchAll(userProfile) {
