@@ -443,7 +443,8 @@ const Renderer = {
           <p class="warm-sign">— 方向匹配器，写给正在找路的你</p>
         </div>
 
-        <!-- 分享区 -->
+        ${state.paid ? `
+        <!-- 分享区（付费后可见） -->
         <div class="share-section">
           <h3>📤 ${t('shareTitle')}</h3>
           <button class="btn btn-share" id="shareCardBtn">
@@ -451,6 +452,7 @@ const Renderer = {
           </button>
           <p class="share-hint">${t('shareHint')}</p>
         </div>
+        ` : ''}
 
         <!-- 重测 -->
         <div class="retake-section">
@@ -795,38 +797,50 @@ const Renderer = {
         ctx.fillStyle = i === 0 ? 'rgba(255,215,0,0.15)' : 'rgba(255,255,255,0.08)';
         ctx.strokeStyle = i === 0 ? 'rgba(255,215,0,0.3)' : 'rgba(255,255,255,0.15)';
         ctx.lineWidth = 1;
-        roundRect(ctx, 40, y, 720, 250, 16);
+        roundRect(ctx, 40, y, 720, 260, 16);
         ctx.fill(); ctx.stroke();
 
         ctx.fillStyle = '#ffffff';
         ctx.font = 'bold 28px "PingFang SC", "Microsoft YaHei", sans-serif';
         ctx.textAlign = 'left';
-        ctx.fillText(`${medals[i]} 第 ${i + 1} 名`, 70, y + 50);
+        ctx.fillText(`${medals[i]} 第 ${i + 1} 名`, 70, y + 45);
 
-        ctx.font = 'bold 32px "PingFang SC", "Microsoft YaHei", sans-serif';
-        ctx.fillText(match.track.name, 70, y + 95);
+        // 赛道名（截断过长名字）
+        let trackName = match.track.name;
+        ctx.font = 'bold 28px "PingFang SC", "Microsoft YaHei", sans-serif';
+        const maxNameWidth = 500;
+        while (ctx.measureText(trackName).width > maxNameWidth && trackName.length > 2) {
+          trackName = trackName.slice(0, -2) + '…';
+        }
+        ctx.fillText(trackName, 70, y + 88);
 
         ctx.fillStyle = '#ffd700';
-        ctx.font = 'bold 24px "PingFang SC", "Microsoft YaHei", sans-serif';
+        ctx.font = 'bold 22px "PingFang SC", "Microsoft YaHei", sans-serif';
         ctx.textAlign = 'right';
-        ctx.fillText(`${match.score}% 匹配`, 740, y + 95);
+        ctx.fillText(`${match.score}%`, 740, y + 88);
 
         ctx.fillStyle = '#cccccc';
-        ctx.font = '18px "PingFang SC", "Microsoft YaHei", sans-serif';
+        ctx.font = '16px "PingFang SC", "Microsoft YaHei", sans-serif';
         ctx.textAlign = 'left';
-        ctx.fillText(`💰 ${match.track.income}    ⏱️ ${match.track.timeToStart}`, 70, y + 140);
+        ctx.fillText(`💰 ${match.track.income}`, 70, y + 125);
+        ctx.fillText(`⏱️ ${match.track.timeToStart}`, 70, y + 150);
 
         ctx.fillStyle = '#a0a0cc';
-        ctx.font = '16px "PingFang SC", "Microsoft YaHei", sans-serif';
+        ctx.font = '15px "PingFang SC", "Microsoft YaHei", sans-serif';
         match.details.slice(0, 2).forEach((d, j) => {
-          ctx.fillText(`• ${d}`, 70, y + 175 + j * 30);
+          // 截断过长详情
+          let detail = d;
+          while (ctx.measureText(detail).width > 660 && detail.length > 2) {
+            detail = detail.slice(0, -2) + '…';
+          }
+          ctx.fillText(`• ${detail}`, 70, y + 185 + j * 28);
         });
       });
 
-      // 底部引导文字
-      const qrY = 1070;
+      // 底部引导文字 + QR区域
+      const qrY = 1020;
       ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 22px "PingFang SC", "Microsoft YaHei", sans-serif';
+      ctx.font = 'bold 20px "PingFang SC", "Microsoft YaHei", sans-serif';
       ctx.textAlign = 'center';
       ctx.fillText('扫码测测你的赚钱方向 →', 400, qrY);
     };
@@ -837,20 +851,19 @@ const Renderer = {
     qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(this.SITE_URL)}&margin=8`;
     qrImg.onload = () => {
       drawBase();
-      const qrY = 1070;
-      // QR 码居中
-      ctx.drawImage(qrImg, 325, qrY + 15, 150, 150);
+      // QR 码居中（1020 + 15 = 1035, height 150 → 1185, fits in 1200 canvas）
+      ctx.drawImage(qrImg, 325, 1040, 150, 150);
       this.downloadCard(canvas);
     };
     qrImg.onerror = () => {
       // QR 加载失败，用域名文字代替
       drawBase();
-      const qrY = 1070;
       ctx.fillStyle = '#ffffff';
-      ctx.fillRect(280, qrY + 15, 240, 60);
+      ctx.fillRect(280, 1040, 240, 60);
       ctx.fillStyle = '#7c5cfc';
       ctx.font = 'bold 16px "PingFang SC", "Microsoft YaHei", sans-serif';
-      ctx.fillText(this.SITE_URL, 400, qrY + 55);
+      ctx.textAlign = 'center';
+      ctx.fillText(this.SITE_URL, 400, 1080);
       this.downloadCard(canvas);
     };
   },
