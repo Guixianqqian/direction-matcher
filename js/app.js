@@ -507,19 +507,14 @@ const Renderer = {
     }
   },
 
-  // === 付费弹窗（方案A：即时解锁 + 微信软引导） ===
-  UNLOCK_CODES: ['2026','1111','2222','3333','4444','5555','6666','7777','8888','9999'],
+  // === 付费弹窗（人工激活模式：用户付款→加微信→客服激活→解锁） ===
 
   showPayModal() {
-    // 生成一个随机解锁码
     const genCode = () => {
       const code = String(Math.floor(1000 + Math.random() * 9000));
-      if (!this.UNLOCK_CODES.includes(code)) {
-        this.UNLOCK_CODES.push(code);
-      }
-      // 记录到 localStorage 供后台管理
+      // 记录签发
       const issued = this._getIssuedCodes();
-      issued.push({ code, time: Date.now(), used: false });
+      issued.push({ code, time: Date.now(), activated: false });
       localStorage.setItem('dm_issued_codes', JSON.stringify(issued));
       Analytics.track('code_issued', { code });
       return code;
@@ -528,7 +523,7 @@ const Renderer = {
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `
-      <div class="modal modal--wide">
+      <div class="modal modal--wide modal--wechat">
         <button class="modal-close">&times;</button>
 
         <!-- 第一步：支付 -->
@@ -556,42 +551,46 @@ const Renderer = {
           </button>
         </div>
 
-        <!-- 第二步：解锁码展示（初始隐藏） -->
+        <!-- 第二步：加微信激活（初始隐藏） -->
         <div id="codeStep" style="display:none;">
-          <h3>🎉 支付确认</h3>
+          <h3>🎉 最后一步</h3>
+
           <div class="code-reveal-box">
             <p class="code-reveal-label">🔑 你的解锁码</p>
             <p class="code-reveal-value" id="revealedCode"></p>
-            <button class="btn-copy-inline" id="copyCodeBtn">📋 一键复制</button>
+            <p class="code-reveal-status" id="codeStatus">⏳ 待激活</p>
+            <button class="btn-copy-inline" id="copyCodeBtn">📋 复制解锁码</button>
+          </div>
+
+          <!-- 微信激活引导 -->
+          <div class="activate-guide">
+            <div class="qr-box qr-box--medium" id="wechatContactQR">
+              <p style="color:var(--color-text-muted);">加载中...</p>
+            </div>
+            <p class="activate-title">📱 扫码添加客服微信</p>
+            <p class="activate-desc">发送你的解锁码和<strong>付款截图</strong>，客服激活后即可解锁</p>
           </div>
 
           <div class="verify-section" style="margin-top:16px;">
-            <p class="verify-label">将解锁码粘贴到下方，立即解锁</p>
             <input type="text" class="verify-input" id="verifyInput"
                    placeholder="输入 4 位解锁码" maxlength="4" autocomplete="off">
-            <p class="verify-error" id="verifyError" style="display:none;">解锁码不匹配，请检查后重试</p>
+            <p class="verify-error" id="verifyError" style="display:none;"></p>
           </div>
 
           <button class="btn btn-gold btn-lg" id="confirmPayBtn" disabled style="width:100%;">
             🔓 解锁完整报告
           </button>
 
-          <!-- 微信软引导 -->
-          <div class="wechat-soft-cta">
-            <div class="qr-box qr-box--small" id="contactQR">
-              <p style="color:var(--color-text-muted);">加载中...</p>
-            </div>
-            <p class="qr-label">📱 加微信获取一对一创业指导（推荐）</p>
-            <p style="font-size:0.7rem;color:var(--color-text-muted);margin-top:4px;">
-              不定期分享一人公司实战干货 · 新赛道内测优先体验
-            </p>
-          </div>
+          <p style="text-align:center;font-size:0.72rem;color:var(--color-text-muted);margin-top:8px;">
+            ⏱️ 一般 5 分钟内激活 · 激活后解锁码永久有效
+          </p>
         </div>
       </div>
     `;
     document.body.appendChild(overlay);
 
     let currentCode = null;
+    let pollTimer = null;
 
     // 加载QR图片
     const loadQR = (type, boxId) => {
@@ -609,33 +608,78 @@ const Renderer = {
     };
     loadQR('wechat', 'wechatQR');
     loadQR('alipay', 'alipayQR');
-    loadQR('wechat-contact', 'contactQR');
+    loadQR('wechat-contact', 'wechatContactQR');
 
-    // 关闭
-    const closeModal = () => overlay.remove();
+    // 关闭 & 清理
+    const closeModal = () => {
+      if (pollTimer) clearInterval(pollTimer);
+      overlay.remove();
+    };
     overlay.querySelector('.modal-close').addEventListener('click', closeModal);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
 
-    // 第一步 → 第二步
+    // DOM refs
     const payStep = overlay.querySelector('#payStep');
     const codeStep = overlay.querySelector('#codeStep');
     const paidBtn = overlay.querySelector('#paidBtn');
     const revealedCode = overlay.querySelector('#revealedCode');
+    const codeStatus = overlay.querySelector('#codeStatus');
     const copyCodeBtn = overlay.querySelector('#copyCodeBtn');
     const verifyInput = overlay.querySelector('#verifyInput');
     const confirmBtn = overlay.querySelector('#confirmPayBtn');
     const verifyError = overlay.querySelector('#verifyError');
 
+    // 检查码是否已激活
+    const isActivated = (code) => this._getActivatedCodes().includes(code);
+
+    // 更新解锁按钮状态
+    const updateUnlockState = () => {
+      if (!currentCode) return;
+      const activated = isActivated(currentCode);
+      const inputVal = verifyInput.value.trim();
+
+      if (activated) {
+        codeStatus.textContent = '✅ 已激活';
+        codeStatus.className = 'code-reveal-status code-active';
+      } else {
+        codeStatus.textContent = '⏳ 待激活';
+        codeStatus.className = 'code-reveal-status code-pending';
+      }
+
+      if (inputVal === currentCode && activated) {
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = '✅ 解锁完整报告';
+        confirmBtn.classList.add('btn-verified');
+        verifyError.style.display = 'none';
+      } else if (inputVal === currentCode && !activated) {
+        confirmBtn.disabled = true;
+        verifyError.textContent = '解锁码尚未激活，请添加客服微信发送付款截图';
+        verifyError.style.display = 'block';
+      } else if (inputVal.length >= 2) {
+        confirmBtn.disabled = true;
+        verifyError.textContent = '解锁码不匹配，请检查后重试';
+        verifyError.style.display = 'block';
+      } else {
+        confirmBtn.disabled = true;
+        verifyError.style.display = 'none';
+      }
+    };
+
+    // 第一步 → 第二步
     paidBtn.addEventListener('click', () => {
       currentCode = genCode();
       revealedCode.textContent = currentCode;
       payStep.style.display = 'none';
       codeStep.style.display = 'block';
-      // 自动填入
-      setTimeout(() => {
-        verifyInput.value = currentCode;
-        verifyInput.dispatchEvent(new Event('input'));
-      }, 100);
+      updateUnlockState();
+
+      // 轮询激活状态（每 3 秒检查一次）
+      pollTimer = setInterval(() => {
+        if (isActivated(currentCode)) {
+          updateUnlockState();
+          clearInterval(pollTimer);
+        }
+      }, 3000);
     });
 
     // 一键复制
@@ -643,34 +687,23 @@ const Renderer = {
       navigator.clipboard.writeText(currentCode);
       copyCodeBtn.textContent = '✅ 已复制';
       copyCodeBtn.classList.add('copied');
-      setTimeout(() => { copyCodeBtn.textContent = '📋 一键复制'; copyCodeBtn.classList.remove('copied'); }, 2000);
+      setTimeout(() => { copyCodeBtn.textContent = '📋 复制解锁码'; copyCodeBtn.classList.remove('copied'); }, 2000);
     });
 
-    // 解锁码校验
-    verifyInput.addEventListener('input', () => {
-      if (this.UNLOCK_CODES.includes(verifyInput.value.trim())) {
-        confirmBtn.disabled = false;
-        Analytics.track('unlock_success', { code: verifyInput.value.trim() });
-        verifyError.style.display = 'none';
-        confirmBtn.textContent = '✅ 解锁完整报告';
-        confirmBtn.classList.add('btn-verified');
-        // 标记已使用
-        this._markCodeUsed(verifyInput.value.trim());
-      } else {
-        confirmBtn.disabled = true;
-        verifyError.style.display = verifyInput.value.trim().length >= 2 ? 'block' : 'none';
-        if (verifyInput.value.trim().length >= 3) Analytics.track('unlock_fail');
-      }
-    });
+    // 解锁码输入
+    verifyInput.addEventListener('input', updateUnlockState);
 
+    // 解锁
     confirmBtn.addEventListener('click', () => {
-      if (this.UNLOCK_CODES.includes(verifyInput.value.trim())) {
+      if (verifyInput.value.trim() === currentCode && isActivated(currentCode)) {
+        clearInterval(pollTimer);
         Store.dispatch('UNLOCK');
         overlay.remove();
+        Analytics.track('unlock_success', { code: currentCode });
         setTimeout(() => {
           const toast = document.createElement('div');
           toast.className = 'unlock-toast';
-          toast.innerHTML = '🔓 解锁成功！扫码加微信，获取更多创业指导 👋';
+          toast.innerHTML = '🔓 解锁成功！好好利用这份报告，有任何问题随时微信找我 👋';
           document.body.appendChild(toast);
           setTimeout(() => { toast.classList.add('show'); }, 50);
           setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 400); }, 2500);
@@ -686,7 +719,7 @@ const Renderer = {
     });
   },
 
-  // 获取已签发的解锁码列表
+  // === 解锁码管理 ===
   _getIssuedCodes() {
     try {
       const raw = localStorage.getItem('dm_issued_codes');
@@ -694,7 +727,35 @@ const Renderer = {
     } catch (e) { return []; }
   },
 
-  // 标记解锁码已使用
+  _getActivatedCodes() {
+    try {
+      const raw = localStorage.getItem('dm_activated_codes');
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) { return []; }
+  },
+
+  _activateCode(code) {
+    const activated = this._getActivatedCodes();
+    if (!activated.includes(code)) {
+      activated.push(code);
+      localStorage.setItem('dm_activated_codes', JSON.stringify(activated));
+    }
+    // 同步更新签发记录
+    const issued = this._getIssuedCodes();
+    const found = issued.find(c => c.code === code);
+    if (found) { found.activated = true; found.activatedAt = Date.now(); }
+    localStorage.setItem('dm_issued_codes', JSON.stringify(issued));
+  },
+
+  _deactivateCode(code) {
+    const activated = this._getActivatedCodes().filter(c => c !== code);
+    localStorage.setItem('dm_activated_codes', JSON.stringify(activated));
+    const issued = this._getIssuedCodes();
+    const found = issued.find(c => c.code === code);
+    if (found) { found.activated = false; delete found.activatedAt; }
+    localStorage.setItem('dm_issued_codes', JSON.stringify(issued));
+  },
+
   _markCodeUsed(code) {
     const issued = this._getIssuedCodes();
     const found = issued.find(c => c.code === code);
@@ -850,11 +911,18 @@ const Renderer = {
           ${(()=>{
             const codes = this._getIssuedCodes();
             if (codes.length === 0) return '<p style="text-align:center;color:var(--color-text-muted);">暂未签发过解锁码</p>';
-            return `<table class="admin-table"><thead><tr><th>解锁码</th><th>签发时间</th><th>状态</th></tr></thead><tbody>
+            return `<table class="admin-table"><thead><tr><th>解锁码</th><th>签发时间</th><th>激活</th><th>使用</th><th>操作</th></tr></thead><tbody>
               ${codes.slice().reverse().slice(0, 50).map(c => `<tr>
                 <td style="font-family:monospace;letter-spacing:0.2em;">${c.code}</td>
                 <td>${new Date(c.time).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}</td>
-                <td style="color:${c.used?'var(--color-success)':'var(--color-text-muted)'}">${c.used ? '✅ 已使用' : '⏳ 未使用'}</td>
+                <td style="color:${c.activated?'var(--color-success)':'var(--color-text-muted)'}">${c.activated ? '✅ 已激活' : '⏳ 待激活'}</td>
+                <td>${c.used ? '✅ ' + new Date(c.usedAt).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '-'}</td>
+                <td>
+                  ${c.activated
+                    ? `<button class="btn btn-outline btn-sm admin-code-btn" data-code="${c.code}" data-action="deactivate" style="font-size:0.7rem;padding:2px 8px;color:#ff4757;border-color:#ff4757;">停用</button>`
+                    : `<button class="btn btn-outline btn-sm admin-code-btn" data-code="${c.code}" data-action="activate" style="font-size:0.7rem;padding:2px 8px;color:#00d4aa;border-color:#00d4aa;">✅ 激活</button>`
+                  }
+                </td>
               </tr>`).join('')}
             </tbody></table>`;
           })()}
@@ -880,6 +948,20 @@ const Renderer = {
     document.getElementById('changePwBtn').addEventListener('click',()=>this.showChangePwModal());
     document.getElementById('logoutBtn').addEventListener('click',()=>{sessionStorage.removeItem('dm_admin_auth');window.location.href='/';});
     document.getElementById('clearBtn').addEventListener('click',()=>{if(confirm('确定清除全部数据？不可恢复。')){Analytics.clearData();this.renderAdmin();}});
+
+    // 解锁码管理：激活 / 停用
+    document.querySelectorAll('.admin-code-btn').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const code = btn.dataset.code;
+        const action = btn.dataset.action;
+        if (action === 'activate') {
+          this._activateCode(code);
+        } else if (action === 'deactivate') {
+          this._deactivateCode(code);
+        }
+        this.renderAdmin(); // 刷新面板
+      });
+    });
   },
 
   // === 修改密码弹窗 ===
