@@ -760,30 +760,390 @@ body::before {
 }
 
 /* === 响应式 === */
+/* ====== 手机端全面适配 ====== */
 @media (max-width: 480px) {
+  /* 全局 */
   #app {
     padding: var(--space-md) var(--space-sm);
   }
 
+  /* 首页 Hero */
   .hero-title {
-    font-size: 1.8rem;
+    font-size: 1.6rem;
+    line-height: 1.3;
+  }
+  .hero-desc {
+    font-size: 0.92rem;
+    padding: 0 4px;
+  }
+  .hero-sub {
+    font-size: 0.82rem;
+  }
+  .hero-badge {
+    font-size: 0.72rem;
+    padding: 4px 12px;
+  }
+  .hero-hint {
+    font-size: 0.75rem;
   }
 
+  /* 首页 Features */
+  .features {
+    flex-direction: column;
+    gap: var(--space-sm);
+    padding: 0 8px;
+  }
+  .feature-item {
+    justify-content: flex-start;
+    padding: 8px 12px;
+    font-size: 0.88rem;
+  }
+
+  /* 首页 Trust Bar */
+  .trust-bar {
+    font-size: 0.8rem;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  /* 案例墙 */
+  .social-proof {
+    padding: var(--space-md);
+  }
+  .social-proof h3 {
+    font-size: 0.9rem;
+  }
+  .testimonial {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    padding: 12px;
+  }
+  .testimonial-avatar {
+    font-size: 2rem;
+  }
+  .testimonial-text {
+    font-size: 0.82rem;
+  }
+  .testimonial-name {
+    font-size: 0.78rem;
+  }
+  .testimonial-tag {
+    font-size: 0.7rem;
+  }
+
+  /* 品牌区 */
+  .brand-section {
+    padding: var(--space-md);
+  }
+  .brand-name {
+    font-size: 0.9rem;
+  }
+  .brand-bio {
+    font-size: 0.78rem;
+  }
+  .brand-avatar {
+    font-size: 2.5rem;
+  }
+
+  /* 反馈区 */
+  .feedback-section {
+    padding: var(--space-md);
+  }
+  .feedback-email-text {
+    font-size: 0.75rem;
+    word-break: break-all;
+  }
+
+  /* 答题页 */
+  .quiz-page {
+    padding-top: var(--space-sm);
+  }
   .question-text {
-    font-size: 1.15rem;
+    font-size: 1.05rem;
+    line-height: 1.4;
+    margin-bottom: var(--space-md);
+  }
+  .quiz-header {
+    margin-bottom: var(--space-sm);
+  }
+  .progress-text {
+    font-size: 0.72rem;
+  }
+  .option-btn {
+    padding: 14px 14px;
+    font-size: 0.9rem;
+    gap: 8px;
+  }
+  .option-radio {
+    font-size: 0.85rem;
+    min-width: 24px;
+  }
+  .quiz-footer {
+    padding-top: var(--space-sm);
+    gap: 8px;
+  }
+  .step-indicator {
+    font-size: 0.75rem;
   }
 
-  .match-name {
-    font-size: 1.1rem;
+  /* 结果页 */
+  .result-header {
+    padding: var(--space-md) 0;
   }
-
-  .btn-lg {
-    padding: 14px 24px;
+  .result-badge {
+    font-size: 0.8rem;
+  }
+  .result-subtitle {
+    font-size: 0.85rem;
+  }
+  .match-card {
+    padding: var(--space-md);
+    margin-bottom: var(--space-sm);
+  }
+  .match-rank {
     font-size: 1rem;
   }
+  .match-name {
+    font-size: 1rem;
+    line-height: 1.3;
+  }
+  .match-score {
+    font-size: 0.9rem;
+  }
+  .match-meta {
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+  .meta-tag {
+    font-size: 0.72rem;
+    padding: 3px 8px;
+  }
+  .match-why h4, .match-path h4 {
+    font-size: 0.85rem;
+  }
+  .match-why li, .match-path p {
+    font-size: 0.78rem;
+  }
 
-  .features {
-    gap: var(--space-md);
+  /* 付费墙 */
+  .paywall {
+    padding: var(--space-lg) var(--space-md);
+    margin: var(--space-md) 0;
+  }
+  .pay-wall-content h3 {
+    font-size: 1.1rem;
+  }
+  .paywall-desc {
+    font-size: 0.82rem;
+  }
+  .price-amount {
+    font-size: 1.6rem;
+  }
+  .paywall-hint {
+    font-size: 0.72rem;
+  }
+
+  /* 分享区 */
+  .share-section {
+    padding: var(--space-md);
+  }
+  .share-section h3 {
+    font-size: 0.9rem;
+  }
+  .share-hint {
+    font-size: 0.7rem;
+  }
+
+  /* 暖心收尾 */
+  .warm-closing {
+    padding: var(--space-md);
+  }
+  .warm-title {
+    font-size: 0.95rem;
+  }
+  .warm-text {
+    font-size: 0.8rem;
+  }
+  .warm-sign {
+    font-size: 0.78rem;
+  }
+
+  /* 重测 & 法律 */
+  .retake-section {
+    padding: var(--space-sm);
+  }
+  .legal-footer p {
+    font-size: 0.65rem;
+  }
+
+  /* 按钮 */
+  .btn {
+    font-size: 0.9rem;
+    padding: 12px 20px;
+  }
+  .btn-lg {
+    padding: 14px 20px;
+    font-size: 0.95rem;
+  }
+  .btn-sm {
+    font-size: 0.72rem;
+    padding: 6px 10px;
+  }
+
+  /* Modal */
+  .modal {
+    width: 94vw;
+    max-width: 94vw;
+    padding: 20px 16px;
+    border-radius: var(--radius-md);
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  .modal--wide {
+    max-width: 94vw;
+  }
+  .modal-close {
+    font-size: 1.4rem;
+    top: 8px;
+    right: 12px;
+  }
+  .qr-row {
+    flex-direction: column;
+    align-items: center;
+  }
+  .qr-box {
+    width: 150px;
+    height: 150px;
+  }
+  .qr-box--medium {
+    width: 110px;
+    height: 110px;
+  }
+  .qr-box--small {
+    width: 75px;
+    height: 75px;
+  }
+  .qr-label {
+    font-size: 0.75rem;
+  }
+  .verify-input {
+    font-size: 0.9rem;
+    padding: 10px 14px;
+  }
+  .verify-error {
+    font-size: 0.72rem;
+  }
+  .code-reveal-value {
+    font-size: 1.8rem;
+    letter-spacing: 0.15em;
+  }
+  .code-reveal-label {
+    font-size: 0.75rem;
+  }
+  .activate-guide {
+    padding: var(--space-sm);
+  }
+  .activate-title {
+    font-size: 0.82rem;
+  }
+  .activate-desc {
+    font-size: 0.72rem;
+  }
+
+  /* Admin 登录 */
+  .admin-login-container {
+    max-width: 100%;
+  }
+  .admin-login-card {
+    padding: 24px 16px 20px;
+  }
+  .admin-login-card h1 {
+    font-size: 1.15rem;
+  }
+  .admin-login-desc {
+    font-size: 0.8rem;
+  }
+  .admin-login-input {
+    padding: 10px 14px;
+    font-size: 0.95rem;
+  }
+  .admin-login-icon {
+    font-size: 2.5rem;
+  }
+
+  /* Admin 面板 */
+  .admin-page {
+    padding-top: var(--space-md);
+  }
+  .admin-page h1 {
+    font-size: 1.1rem;
+    margin-bottom: var(--space-sm);
+  }
+  .admin-section {
+    padding: var(--space-md);
+    margin-bottom: var(--space-sm);
+  }
+  .admin-section h2 {
+    font-size: 0.88rem;
+  }
+
+  /* Admin 漏斗 */
+  .funnel-grid {
+    flex-direction: column;
+    gap: 6px;
+  }
+  .funnel-step {
+    min-width: auto;
+    flex-direction: row;
+    justify-content: space-between;
+    padding: 8px 14px;
+    gap: 8px;
+  }
+  .funnel-arrow {
+    transform: rotate(90deg);
+    font-size: 0.8rem;
+  }
+  .funnel-num {
+    font-size: 1.2rem;
+  }
+
+  /* Admin 表格 */
+  .admin-table {
+    font-size: 0.68rem;
+  }
+  .admin-table th,
+  .admin-table td {
+    padding: 5px 3px;
+  }
+
+  /* Admin 操作按钮组 */
+  .admin-section .btn-sm {
+    font-size: 0.68rem;
+    padding: 5px 8px;
+  }
+}
+
+/* ====== 触摸设备优化 ====== */
+@media (hover: none) and (pointer: coarse) {
+  .btn, .btn-lg, .option-btn, .btn-gold, .btn-primary, .btn-outline, .btn-share {
+    min-height: 44px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .option-btn {
+    padding: 14px 14px;
+  }
+  .admin-code-btn {
+    min-height: 36px;
+    min-width: 52px;
+  }
+  .modal-close {
+    min-width: 40px;
+    min-height: 40px;
+    font-size: 1.5rem;
+  }
+  .btn-copy-inline {
+    min-height: 32px;
   }
 }
 
@@ -1327,93 +1687,6 @@ body::before {
 
 .admin-login-link:hover {
   color: var(--color-accent);
-}
-
-/* === 移动端适配 === */
-@media (max-width: 480px) {
-  .modal {
-    width: 94vw;
-    max-width: 94vw;
-    padding: 20px 16px;
-    border-radius: var(--radius-md);
-  }
-
-  .modal--wide {
-    max-width: 94vw;
-  }
-
-  .qr-row {
-    flex-direction: column;
-    align-items: center;
-  }
-
-  .qr-box {
-    width: 160px;
-    height: 160px;
-  }
-
-  .qr-box--medium {
-    width: 120px;
-    height: 120px;
-  }
-
-  .qr-box--small {
-    width: 80px;
-    height: 80px;
-  }
-
-  .code-reveal-value {
-    font-size: 2rem;
-    letter-spacing: 0.2em;
-  }
-
-  .admin-login-card {
-    padding: 28px 20px 24px;
-  }
-
-  .activate-guide {
-    padding: var(--space-sm);
-  }
-
-  .funnel-grid {
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .funnel-arrow {
-    transform: rotate(90deg);
-  }
-
-  .admin-table {
-    font-size: 0.72rem;
-  }
-
-  .admin-table th,
-  .admin-table td {
-    padding: 6px 4px;
-  }
-
-  .btn-sm {
-    font-size: 0.72rem;
-    padding: 6px 10px;
-  }
-}
-
-/* 触摸优化 */
-@media (hover: none) and (pointer: coarse) {
-  .btn, .option-btn {
-    min-height: 44px;
-    -webkit-tap-highlight-color: transparent;
-  }
-
-  .option-btn {
-    padding: 14px 16px;
-  }
-
-  .admin-code-btn {
-    min-height: 36px;
-    min-width: 52px;
-  }
 }
 
 /* === 打印/导出优化 === */
