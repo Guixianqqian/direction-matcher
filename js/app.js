@@ -129,7 +129,12 @@ const Renderer = {
       return;
     }
     Store.subscribe(state => this.render(state));
-    this.render(Store.getState());
+    // 渲染首页（错误边界）
+    try {
+      this.render(Store.getState());
+    } catch(e) {
+      this.root.innerHTML = '<div class="page home-page" style="text-align:center;padding-top:80px;"><p style="color:#e8e8f0;">加载失败，请刷新页面重试</p><p style="color:#606080;font-size:0.8rem;margin-top:12px;">若多次失败，请尝试用系统浏览器打开</p></div>';
+    }
   },
 
   render(state) {
@@ -1088,7 +1093,7 @@ const Renderer = {
   async _hashPw(str) {
     // 优先使用 Web Crypto API
     let subtle = null;
-    try { subtle = (window.crypto && window.crypto.subtle) || (globalThis.crypto && globalThis.crypto.subtle); } catch(e) {}
+    try { subtle = window.crypto && window.crypto.subtle; } catch(e) {}
 
     if (subtle && subtle.digest) {
       try {

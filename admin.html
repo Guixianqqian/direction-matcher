@@ -49,7 +49,7 @@
         // 优先使用 Web Crypto API
         var subtle = null;
         try {
-          subtle = (window.crypto && window.crypto.subtle) || (globalThis.crypto && globalThis.crypto.subtle);
+          subtle = window.crypto && window.crypto.subtle;
         } catch(e) {}
 
         if (subtle && subtle.digest) {
