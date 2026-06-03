@@ -1042,15 +1042,29 @@ const Renderer = {
     });
   },
 
-  // SHA-256 密码哈希
+  // SHA-256 密码哈希（优先 Web Crypto，降级简单哈希）
   async _hashPw(str) {
-    const data = new TextEncoder().encode(str);
-    const subtle = (globalThis.crypto && globalThis.crypto.subtle) || (window.crypto && window.crypto.subtle);
-    if (!subtle) throw new Error('浏览器不支持 crypto API');
-    const buf = await subtle.digest('SHA-256', data);
-    return Array.from(new Uint8Array(buf))
-      .map(b => b.toString(16).padStart(2, '0'))
-      .join('');
+    // 优先使用 Web Crypto API
+    let subtle = null;
+    try { subtle = (window.crypto && window.crypto.subtle) || (globalThis.crypto && globalThis.crypto.subtle); } catch(e) {}
+
+    if (subtle && subtle.digest) {
+      try {
+        const data = new TextEncoder().encode(str);
+        const buf = await subtle.digest('SHA-256', data);
+        return Array.from(new Uint8Array(buf))
+          .map(b => b.toString(16).padStart(2, '0'))
+          .join('');
+      } catch(e) {}
+    }
+
+    // 降级：简单哈希
+    let h = 0;
+    for (let i = 0; i < str.length; i++) {
+      h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+      h = (h * 16777619) | 0;
+    }
+    return 'fb_' + Math.abs(h).toString(36);
   },
 };
 
