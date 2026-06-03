@@ -507,55 +507,93 @@ const Renderer = {
     }
   },
 
-  // === 付费弹窗（客服确认后给解锁码） ===
+  // === 付费弹窗（方案A：即时解锁 + 微信软引导） ===
   UNLOCK_CODES: ['2026','1111','2222','3333','4444','5555','6666','7777','8888','9999'],
 
   showPayModal() {
+    // 生成一个随机解锁码
+    const genCode = () => {
+      const code = String(Math.floor(1000 + Math.random() * 9000));
+      if (!this.UNLOCK_CODES.includes(code)) {
+        this.UNLOCK_CODES.push(code);
+      }
+      // 记录到 localStorage 供后台管理
+      const issued = this._getIssuedCodes();
+      issued.push({ code, time: Date.now(), used: false });
+      localStorage.setItem('dm_issued_codes', JSON.stringify(issued));
+      Analytics.track('code_issued', { code });
+      return code;
+    };
+
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.innerHTML = `
       <div class="modal modal--wide">
         <button class="modal-close">&times;</button>
-        <h3>💳 扫码支付 ¥9.9</h3>
-        <p style="font-size:0.82rem;color:var(--color-text-secondary);margin-bottom:12px;">
-          微信或支付宝二选一即可
-        </p>
-        <div class="qr-row">
-          <div class="qr-item">
-            <div class="qr-box" id="wechatQR">
-              <p style="color:var(--color-text-muted);">加载中...</p>
+
+        <!-- 第一步：支付 -->
+        <div id="payStep">
+          <h3>💳 扫码支付 ¥9.9</h3>
+          <p style="font-size:0.82rem;color:var(--color-text-secondary);margin-bottom:12px;">
+            微信或支付宝二选一即可
+          </p>
+          <div class="qr-row">
+            <div class="qr-item">
+              <div class="qr-box" id="wechatQR">
+                <p style="color:var(--color-text-muted);">加载中...</p>
+              </div>
+              <p class="qr-label">🟢 微信支付</p>
             </div>
-            <p class="qr-label">🟢 微信支付</p>
-          </div>
-          <div class="qr-item">
-            <div class="qr-box" id="alipayQR">
-              <p style="color:var(--color-text-muted);">加载中...</p>
+            <div class="qr-item">
+              <div class="qr-box" id="alipayQR">
+                <p style="color:var(--color-text-muted);">加载中...</p>
+              </div>
+              <p class="qr-label">🔵 支付宝</p>
             </div>
-            <p class="qr-label">🔵 支付宝</p>
           </div>
+          <button class="btn btn-gold btn-lg" id="paidBtn" style="width:100%;margin-top:16px;">
+            ✅ 我已支付完成，获取解锁码
+          </button>
         </div>
 
-        <div class="verify-section">
-          <p class="verify-label">🔐 支付完成后，扫码加客服微信获取解锁码</p>
-          <div class="contact-qr-row">
+        <!-- 第二步：解锁码展示（初始隐藏） -->
+        <div id="codeStep" style="display:none;">
+          <h3>🎉 支付确认</h3>
+          <div class="code-reveal-box">
+            <p class="code-reveal-label">🔑 你的解锁码</p>
+            <p class="code-reveal-value" id="revealedCode"></p>
+            <button class="btn-copy-inline" id="copyCodeBtn">📋 一键复制</button>
+          </div>
+
+          <div class="verify-section" style="margin-top:16px;">
+            <p class="verify-label">将解锁码粘贴到下方，立即解锁</p>
+            <input type="text" class="verify-input" id="verifyInput"
+                   placeholder="输入 4 位解锁码" maxlength="4" autocomplete="off">
+            <p class="verify-error" id="verifyError" style="display:none;">解锁码不匹配，请检查后重试</p>
+          </div>
+
+          <button class="btn btn-gold btn-lg" id="confirmPayBtn" disabled style="width:100%;">
+            🔓 解锁完整报告
+          </button>
+
+          <!-- 微信软引导 -->
+          <div class="wechat-soft-cta">
             <div class="qr-box qr-box--small" id="contactQR">
               <p style="color:var(--color-text-muted);">加载中...</p>
             </div>
-            <p class="qr-label">加客服微信获取解锁码</p>
+            <p class="qr-label">📱 加微信获取一对一创业指导（推荐）</p>
+            <p style="font-size:0.7rem;color:var(--color-text-muted);margin-top:4px;">
+              不定期分享一人公司实战干货 · 新赛道内测优先体验
+            </p>
           </div>
-          <input type="text" class="verify-input" id="verifyInput"
-                 placeholder="输入客服给你的 4 位解锁码" maxlength="4" autocomplete="off">
-          <p class="verify-error" id="verifyError" style="display:none;">解锁码错误，请确认支付后联系客服获取</p>
         </div>
-
-        <button class="btn btn-gold btn-lg" id="confirmPayBtn" disabled>
-          🔓 解锁完整报告
-        </button>
       </div>
     `;
     document.body.appendChild(overlay);
 
-    // 加载收款码图片
+    let currentCode = null;
+
+    // 加载QR图片
     const loadQR = (type, boxId) => {
       const box = overlay.querySelector(`#${boxId}`);
       if (!box) return;
@@ -578,11 +616,37 @@ const Renderer = {
     overlay.querySelector('.modal-close').addEventListener('click', closeModal);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
 
-    // 解锁码校验
+    // 第一步 → 第二步
+    const payStep = overlay.querySelector('#payStep');
+    const codeStep = overlay.querySelector('#codeStep');
+    const paidBtn = overlay.querySelector('#paidBtn');
+    const revealedCode = overlay.querySelector('#revealedCode');
+    const copyCodeBtn = overlay.querySelector('#copyCodeBtn');
     const verifyInput = overlay.querySelector('#verifyInput');
     const confirmBtn = overlay.querySelector('#confirmPayBtn');
     const verifyError = overlay.querySelector('#verifyError');
 
+    paidBtn.addEventListener('click', () => {
+      currentCode = genCode();
+      revealedCode.textContent = currentCode;
+      payStep.style.display = 'none';
+      codeStep.style.display = 'block';
+      // 自动填入
+      setTimeout(() => {
+        verifyInput.value = currentCode;
+        verifyInput.dispatchEvent(new Event('input'));
+      }, 100);
+    });
+
+    // 一键复制
+    copyCodeBtn.addEventListener('click', () => {
+      navigator.clipboard.writeText(currentCode);
+      copyCodeBtn.textContent = '✅ 已复制';
+      copyCodeBtn.classList.add('copied');
+      setTimeout(() => { copyCodeBtn.textContent = '📋 一键复制'; copyCodeBtn.classList.remove('copied'); }, 2000);
+    });
+
+    // 解锁码校验
     verifyInput.addEventListener('input', () => {
       if (this.UNLOCK_CODES.includes(verifyInput.value.trim())) {
         confirmBtn.disabled = false;
@@ -590,6 +654,8 @@ const Renderer = {
         verifyError.style.display = 'none';
         confirmBtn.textContent = '✅ 解锁完整报告';
         confirmBtn.classList.add('btn-verified');
+        // 标记已使用
+        this._markCodeUsed(verifyInput.value.trim());
       } else {
         confirmBtn.disabled = true;
         verifyError.style.display = verifyInput.value.trim().length >= 2 ? 'block' : 'none';
@@ -601,17 +667,39 @@ const Renderer = {
       if (this.UNLOCK_CODES.includes(verifyInput.value.trim())) {
         Store.dispatch('UNLOCK');
         overlay.remove();
-        // 解锁后的暖心动效
         setTimeout(() => {
           const toast = document.createElement('div');
           toast.className = 'unlock-toast';
-          toast.innerHTML = '🔓 解锁成功！感谢你的信任，这份报告是我们缘分的开始';
+          toast.innerHTML = '🔓 解锁成功！扫码加微信，获取更多创业指导 👋';
           document.body.appendChild(toast);
           setTimeout(() => { toast.classList.add('show'); }, 50);
           setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 400); }, 2500);
         }, 300);
       }
     });
+
+    // 回车提交
+    overlay.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && codeStep.style.display !== 'none') {
+        confirmBtn.click();
+      }
+    });
+  },
+
+  // 获取已签发的解锁码列表
+  _getIssuedCodes() {
+    try {
+      const raw = localStorage.getItem('dm_issued_codes');
+      return raw ? JSON.parse(raw) : [];
+    } catch (e) { return []; }
+  },
+
+  // 标记解锁码已使用
+  _markCodeUsed(code) {
+    const issued = this._getIssuedCodes();
+    const found = issued.find(c => c.code === code);
+    if (found) { found.used = true; found.usedAt = Date.now(); }
+    localStorage.setItem('dm_issued_codes', JSON.stringify(issued));
   },
 
   // === 生成分享卡片 ===
@@ -756,6 +844,20 @@ const Renderer = {
         <div class="admin-section">
           <h2>🎯 热门结果 Top 10</h2>
           <table class="admin-table"><thead><tr><th>赛道</th><th>次数</th></tr></thead><tbody>${topR.map(([n,c])=>`<tr><td>${n}</td><td>${c}</td></tr>`).join('')||'<tr><td colspan="2">暂无数据</td></tr>'}</tbody></table>
+        </div>
+        <div class="admin-section">
+          <h2>🔑 解锁码签发记录</h2>
+          ${(()=>{
+            const codes = this._getIssuedCodes();
+            if (codes.length === 0) return '<p style="text-align:center;color:var(--color-text-muted);">暂未签发过解锁码</p>';
+            return `<table class="admin-table"><thead><tr><th>解锁码</th><th>签发时间</th><th>状态</th></tr></thead><tbody>
+              ${codes.slice().reverse().slice(0, 50).map(c => `<tr>
+                <td style="font-family:monospace;letter-spacing:0.2em;">${c.code}</td>
+                <td>${new Date(c.time).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}</td>
+                <td style="color:${c.used?'var(--color-success)':'var(--color-text-muted)'}">${c.used ? '✅ 已使用' : '⏳ 未使用'}</td>
+              </tr>`).join('')}
+            </tbody></table>`;
+          })()}
         </div>
         <div class="admin-section">
           <h2>📉 答题流失</h2>
