@@ -995,59 +995,66 @@ body::before {
   .modal {
     width: 94vw;
     max-width: 94vw;
-    padding: 20px 16px;
+    padding: 18px 14px;
     border-radius: var(--radius-md);
-    max-height: 90vh;
+    max-height: 85vh;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
   .modal--wide {
     max-width: 94vw;
   }
   .modal-close {
     font-size: 1.4rem;
-    top: 8px;
-    right: 12px;
+    top: 6px;
+    right: 10px;
+    position: sticky;
+    z-index: 10;
   }
   .qr-row {
     flex-direction: column;
     align-items: center;
+    gap: 12px;
   }
   .qr-box {
-    width: 150px;
-    height: 150px;
+    width: 140px;
+    height: 140px;
   }
   .qr-box--medium {
-    width: 110px;
-    height: 110px;
+    width: 100px;
+    height: 100px;
   }
   .qr-box--small {
-    width: 75px;
-    height: 75px;
+    width: 70px;
+    height: 70px;
   }
   .qr-label {
-    font-size: 0.75rem;
-  }
-  .verify-input {
-    font-size: 0.9rem;
-    padding: 10px 14px;
-  }
-  .verify-error {
     font-size: 0.72rem;
   }
+  .verify-input {
+    font-size: 16px !important;
+    padding: 10px 12px;
+  }
+  .verify-error {
+    font-size: 0.7rem;
+  }
   .code-reveal-value {
-    font-size: 1.8rem;
-    letter-spacing: 0.15em;
+    font-size: 1.6rem;
+    letter-spacing: 0.12em;
   }
   .code-reveal-label {
-    font-size: 0.75rem;
+    font-size: 0.72rem;
   }
   .activate-guide {
     padding: var(--space-sm);
   }
   .activate-title {
-    font-size: 0.82rem;
+    font-size: 0.78rem;
   }
   .activate-desc {
+    font-size: 0.7rem;
+  }
+  .verify-label {
     font-size: 0.72rem;
   }
 

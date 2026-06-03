@@ -114,6 +114,49 @@ function buildUserProfile(answers) {
   return profile;
 }
 
+// === 通用工具 ===
+function copyToClipboard(text, onSuccess, onError) {
+  // 优先 navigator.clipboard
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    navigator.clipboard.writeText(text).then(function() {
+      if (onSuccess) onSuccess();
+    }).catch(function() {
+      fallbackCopy(text, onSuccess, onError);
+    });
+  } else {
+    fallbackCopy(text, onSuccess, onError);
+  }
+
+  function fallbackCopy(t, ok, fail) {
+    var ta = document.createElement('textarea');
+    ta.value = t;
+    ta.style.cssText = 'position:fixed;left:-9999px;top:-9999px;opacity:0;';
+    ta.setAttribute('readonly', '');
+    document.body.appendChild(ta);
+    // iOS 兼容：需要设置 contentEditable + range
+    if (navigator.userAgent.match(/ipad|iphone/i)) {
+      ta.contentEditable = true;
+      ta.readOnly = false;
+      var range = document.createRange();
+      range.selectNodeContents(ta);
+      var sel = window.getSelection();
+      sel.removeAllRanges();
+      sel.addRange(range);
+      ta.setSelectionRange(0, 999999);
+    } else {
+      ta.select();
+      ta.setSelectionRange(0, 999999);
+    }
+    try {
+      document.execCommand('copy');
+      if (ok) ok();
+    } catch(e) {
+      if (fail) fail(e);
+    }
+    document.body.removeChild(ta);
+  }
+}
+
 // === 渲染引擎 ===
 const Renderer = {
   root: null,
@@ -250,10 +293,12 @@ const Renderer = {
     });
 
     document.getElementById('copyEmailHome').addEventListener('click', function() {
-      navigator.clipboard.writeText('176372551@qq.com');
-      this.textContent = '✅ 已复制';
-      this.classList.add('copied');
-      setTimeout(() => { this.textContent = '📋 复制'; this.classList.remove('copied'); }, 2000);
+      var btn = this;
+      copyToClipboard('176372551@qq.com', function() {
+        btn.textContent = '✅ 已复制';
+        btn.classList.add('copied');
+        setTimeout(function() { btn.textContent = '📋 复制'; btn.classList.remove('copied'); }, 2000);
+      });
     });
 
   },
@@ -506,10 +551,12 @@ const Renderer = {
     const copyBtn2 = document.getElementById('copyEmailHome');
     if (copyBtn2) {
       copyBtn2.addEventListener('click', function() {
-        navigator.clipboard.writeText('176372551@qq.com');
-        this.textContent = '✅ 已复制';
-        this.classList.add('copied');
-        setTimeout(() => { this.textContent = '📋 复制'; this.classList.remove('copied'); }, 2000);
+        var btn = this;
+        copyToClipboard('176372551@qq.com', function() {
+          btn.textContent = '✅ 已复制';
+          btn.classList.add('copied');
+          setTimeout(function() { btn.textContent = '📋 复制'; btn.classList.remove('copied'); }, 2000);
+        });
       });
     }
   },
@@ -577,11 +624,18 @@ const Renderer = {
           </div>
 
           <div class="verify-section" style="margin-top:16px;">
+            <p class="verify-label" style="margin-bottom:6px;">方式一：输入解锁码（管理员激活后自动生效）</p>
             <input type="text" class="verify-input" id="verifyInput"
-                   placeholder="输入 4 位解锁码" maxlength="4" autocomplete="off">
-            <p style="text-align:center;font-size:0.72rem;color:var(--color-text-muted, #606080);margin:8px 0;">— 或 —</p>
+                   placeholder="输入 4 位解锁码" maxlength="4" autocomplete="off" inputmode="numeric">
+            <div style="text-align:center;margin:12px 0;">
+              <span style="display:inline-block;width:40px;height:1px;background:var(--color-border, rgba(255,255,255,0.08));vertical-align:middle;"></span>
+              <span style="margin:0 12px;font-size:0.75rem;color:var(--color-text-muted, #606080);">或者</span>
+              <span style="display:inline-block;width:40px;height:1px;background:var(--color-border, rgba(255,255,255,0.08));vertical-align:middle;"></span>
+            </div>
+            <p class="verify-label" style="margin-bottom:6px;">方式二：输入管理员发给你的 6 位激活密钥</p>
             <input type="text" class="verify-input" id="activateKeyInput"
-                   placeholder="输入管理员给你的 6 位激活密钥" maxlength="6" autocomplete="off" style="text-transform:uppercase;">
+                   placeholder="输入 6 位激活密钥" maxlength="6" autocomplete="off"
+                   style="text-transform:uppercase;letter-spacing:0.15em;" inputmode="text">
             <p class="verify-error" id="verifyError" style="display:none;"></p>
           </div>
 
@@ -720,38 +774,18 @@ const Renderer = {
       }, 3000);
     });
 
-    // 一键复制（兼容移动端/微信浏览器）
-    copyCodeBtn.addEventListener('click', () => {
-      const text = currentCode;
-      // 现代浏览器
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(text).then(() => {
-          copyCodeBtn.textContent = '✅ 已复制';
-          copyCodeBtn.classList.add('copied');
-          setTimeout(() => { copyCodeBtn.textContent = '📋 复制解锁码'; copyCodeBtn.classList.remove('copied'); }, 2000);
-        }).catch(() => fallbackCopy(text));
-      } else {
-        fallbackCopy(text);
-      }
-      function fallbackCopy(t) {
-        const ta = document.createElement('textarea');
-        ta.value = t;
-        ta.style.position = 'fixed';
-        ta.style.left = '-9999px';
-        ta.style.top = '-9999px';
-        document.body.appendChild(ta);
-        ta.focus();
-        ta.select();
-        try {
-          document.execCommand('copy');
-          copyCodeBtn.textContent = '✅ 已复制';
-          copyCodeBtn.classList.add('copied');
-        } catch(e) {
-          copyCodeBtn.textContent = '❌ 请手动复制';
-        }
-        document.body.removeChild(ta);
-        setTimeout(() => { copyCodeBtn.textContent = '📋 复制解锁码'; copyCodeBtn.classList.remove('copied'); }, 2000);
-      }
+    // 一键复制解锁码
+    copyCodeBtn.addEventListener('click', function() {
+      var text = currentCode;
+      var btn = copyCodeBtn;
+      copyToClipboard(text, function() {
+        btn.textContent = '✅ 已复制';
+        btn.classList.add('copied');
+        setTimeout(function() { btn.textContent = '📋 复制解锁码'; btn.classList.remove('copied'); }, 2000);
+      }, function() {
+        btn.textContent = '❌ 请手动复制';
+        setTimeout(function() { btn.textContent = '📋 复制解锁码'; btn.classList.remove('copied'); }, 2000);
+      });
     });
 
     // 解锁码输入
@@ -1039,19 +1073,11 @@ const Renderer = {
     });
     document.getElementById('copyKeyBtn').addEventListener('click', function() {
       var key = document.getElementById('genKeyValue').textContent;
-      if (navigator.clipboard && navigator.clipboard.writeText) {
-        navigator.clipboard.writeText(key);
-      } else {
-        var ta = document.createElement('textarea');
-        ta.value = key;
-        ta.style.cssText = 'position:fixed;left:-9999px;';
-        document.body.appendChild(ta);
-        ta.select();
-        document.execCommand('copy');
-        document.body.removeChild(ta);
-      }
-      document.getElementById('copyKeyBtn').textContent = '✅ 已复制';
-      setTimeout(function() { document.getElementById('copyKeyBtn').textContent = '📋 复制密钥'; }, 2000);
+      var btn = document.getElementById('copyKeyBtn');
+      copyToClipboard(key, function() {
+        btn.textContent = '✅ 已复制';
+        setTimeout(function() { btn.textContent = '📋 复制密钥'; }, 2000);
+      });
     });
 
     // 异步加载解锁码表
