@@ -1138,6 +1138,97 @@ body::before {
   color: var(--color-text);
 }
 
+/* === 管理后台登录页 === */
+.admin-login-body {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-md);
+}
+
+.admin-login-container {
+  width: 100%;
+  max-width: 400px;
+}
+
+.admin-login-card {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: 40px 32px 32px;
+  text-align: center;
+}
+
+.admin-login-icon {
+  font-size: 3rem;
+  margin-bottom: var(--space-sm);
+}
+
+.admin-login-card h1 {
+  font-size: 1.3rem;
+  color: var(--color-text);
+  margin-bottom: var(--space-xs);
+}
+
+.admin-login-desc {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-lg);
+}
+
+.admin-login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.admin-login-input {
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: 12px 16px;
+  color: var(--color-text);
+  font-size: 1rem;
+  text-align: center;
+  outline: none;
+  transition: border-color 0.2s;
+}
+
+.admin-login-input:focus {
+  border-color: var(--color-accent);
+}
+
+.admin-login-input::placeholder {
+  color: var(--color-text-muted);
+}
+
+.admin-login-error {
+  font-size: 0.82rem;
+  color: #ff4757;
+  text-align: center;
+}
+
+.admin-login-btn {
+  width: 100%;
+  margin-top: 4px;
+}
+
+.admin-login-footer {
+  margin-top: var(--space-md);
+}
+
+.admin-login-link {
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.admin-login-link:hover {
+  color: var(--color-accent);
+}
+
 /* === 打印/导出优化 === */
 @media print {
   body::before { display: none; }

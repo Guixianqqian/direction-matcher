@@ -121,6 +121,10 @@ const Renderer = {
   init() {
     this.root = document.getElementById('app');
     if (window.location.hash === '#admin') {
+      if (sessionStorage.getItem('dm_admin_auth') !== '1') {
+        window.location.href = '/admin';
+        return;
+      }
       this.renderAdmin();
       return;
     }
@@ -762,14 +766,105 @@ const Renderer = {
           <div style="display:flex;gap:12px;flex-wrap:wrap;justify-content:center;">
             <button class="btn btn-outline btn-sm" id="exportBtn">📥 导出 JSON</button>
             <button class="btn btn-outline btn-sm" id="refreshBtn">🔄 刷新</button>
-            <button class="btn btn-outline btn-sm" id="clearBtn" style="color:#ff4757;border-color:#ff4757;">🗑️ 清除数据</button>
+            <button class="btn btn-outline btn-sm" id="changePwBtn">🔒 修改密码</button>
+            <button class="btn btn-outline btn-sm" id="logoutBtn" style="color:#ff4757;border-color:#ff4757;">🚪 退出登录</button>
+            <button class="btn btn-outline btn-sm" id="clearBtn" style="color:#ffa502;border-color:#ffa502;">🗑️ 清除数据</button>
           </div>
         </div>
-        <p class="footer-note">访问 index.html#admin | 数据仅存本地</p>
+        <p class="footer-note">访问 /admin | 数据仅存本地</p>
       </div>`;
     document.getElementById('exportBtn').addEventListener('click',()=>{const j=Analytics.exportData();const b=new Blob([j],{type:'application/json'});const u=URL.createObjectURL(b);const a=document.createElement('a');a.href=u;a.download='analytics-'+new Date().toISOString().split('T')[0]+'.json';a.click();URL.revokeObjectURL(u);});
     document.getElementById('refreshBtn').addEventListener('click',()=>this.renderAdmin());
+    document.getElementById('changePwBtn').addEventListener('click',()=>this.showChangePwModal());
+    document.getElementById('logoutBtn').addEventListener('click',()=>{sessionStorage.removeItem('dm_admin_auth');window.location.href='/';});
     document.getElementById('clearBtn').addEventListener('click',()=>{if(confirm('确定清除全部数据？不可恢复。')){Analytics.clearData();this.renderAdmin();}});
+  },
+
+  // === 修改密码弹窗 ===
+  showChangePwModal() {
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.innerHTML = `
+      <div class="modal" style="max-width:380px;">
+        <button class="modal-close">&times;</button>
+        <h3>🔒 修改管理密码</h3>
+        <div style="text-align:left;margin-top:16px;">
+          <label style="display:block;font-size:0.82rem;color:var(--color-text-secondary);margin-bottom:4px;">旧密码</label>
+          <input type="password" class="verify-input" id="changeOldPw" placeholder="输入旧密码" autocomplete="off" style="width:100%;box-sizing:border-box;">
+          <label style="display:block;font-size:0.82rem;color:var(--color-text-secondary);margin-top:12px;margin-bottom:4px;">新密码（至少 4 位）</label>
+          <input type="password" class="verify-input" id="changeNewPw1" placeholder="输入新密码" autocomplete="off" style="width:100%;box-sizing:border-box;">
+          <input type="password" class="verify-input" id="changeNewPw2" placeholder="再次输入新密码" autocomplete="off" style="width:100%;box-sizing:border-box;margin-top:8px;">
+          <p id="changePwError" style="display:none;color:#ff4757;font-size:0.78rem;margin-top:8px;"></p>
+        </div>
+        <button class="btn btn-gold btn-lg" id="confirmChangePwBtn" style="width:100%;margin-top:16px;">✅ 确认修改</button>
+      </div>
+    `;
+    document.body.appendChild(overlay);
+
+    const closeModal = () => overlay.remove();
+    overlay.querySelector('.modal-close').addEventListener('click', closeModal);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+
+    const oldPw = overlay.querySelector('#changeOldPw');
+    const newPw1 = overlay.querySelector('#changeNewPw1');
+    const newPw2 = overlay.querySelector('#changeNewPw2');
+    const errEl = overlay.querySelector('#changePwError');
+    const confirmBtn = overlay.querySelector('#confirmChangePwBtn');
+
+    const showErr = (msg) => { errEl.textContent = msg; errEl.style.display = 'block'; };
+    const hideErr = () => { errEl.style.display = 'none'; };
+
+    confirmBtn.addEventListener('click', async () => {
+      hideErr();
+      const old = oldPw.value.trim();
+      const n1 = newPw1.value.trim();
+      const n2 = newPw2.value.trim();
+
+      if (!old || !n1 || !n2) {
+        showErr('请填写所有密码字段');
+        return;
+      }
+
+      // 验证旧密码
+      const storedHash = localStorage.getItem('dm_admin_pw');
+      const oldHash = await this._hashPw(old);
+      if (storedHash && oldHash !== storedHash) {
+        showErr('旧密码错误');
+        return;
+      }
+
+      if (n1.length < 4) {
+        showErr('新密码至少需要 4 位');
+        return;
+      }
+      if (n1 !== n2) {
+        showErr('两次输入的新密码不一致');
+        return;
+      }
+
+      // 更新密码
+      const newHash = await this._hashPw(n1);
+      localStorage.setItem('dm_admin_pw', newHash);
+
+      confirmBtn.textContent = '✅ 密码已更新';
+      confirmBtn.disabled = true;
+      confirmBtn.classList.add('btn-verified');
+      setTimeout(() => overlay.remove(), 800);
+    });
+
+    // 回车提交
+    overlay.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') confirmBtn.click();
+    });
+  },
+
+  // SHA-256 密码哈希
+  async _hashPw(str) {
+    const data = new TextEncoder().encode(str);
+    const buf = await crypto.subtle.digest('SHA-256', data);
+    return Array.from(new Uint8Array(buf))
+      .map(b => b.toString(16).padStart(2, '0'))
+      .join('');
   },
 };
 

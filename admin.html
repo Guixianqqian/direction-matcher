@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta name="robots" content="noindex, nofollow">
+  <title>管理后台 · 方向匹配器</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body class="admin-login-body">
+  <div class="admin-login-container">
+    <div class="admin-login-card">
+      <div class="admin-login-icon">🧭</div>
+      <h1 id="loginTitle">管理后台</h1>
+      <p class="admin-login-desc" id="loginDesc">请输入管理密码</p>
+
+      <div class="admin-login-form" id="loginForm">
+        <input type="password" class="admin-login-input" id="pw1"
+               placeholder="输入密码" autocomplete="off" autofocus>
+        <input type="password" class="admin-login-input" id="pw2"
+               placeholder="再次输入新密码" autocomplete="off" style="display:none;">
+        <p class="admin-login-error" id="loginError" style="display:none;"></p>
+        <button class="btn btn-primary admin-login-btn" id="loginBtn">🔓 解锁</button>
+      </div>
+
+      <p class="admin-login-footer">
+        <a href="/" class="admin-login-link">← 返回首页</a>
+      </p>
+    </div>
+  </div>
+
+  <script>
+    (function() {
+      const PW_KEY = 'dm_admin_pw';
+      const AUTH_KEY = 'dm_admin_auth';
+
+      const title = document.getElementById('loginTitle');
+      const desc = document.getElementById('loginDesc');
+      const pw1 = document.getElementById('pw1');
+      const pw2 = document.getElementById('pw2');
+      const loginBtn = document.getElementById('loginBtn');
+      const loginError = document.getElementById('loginError');
+      const loginForm = document.getElementById('loginForm');
+
+      let isSetup = false; // 首次设置密码 or 登录
+
+      // SHA-256 哈希
+      async function hash(str) {
+        const data = new TextEncoder().encode(str);
+        const buf = await crypto.subtle.digest('SHA-256', data);
+        return Array.from(new Uint8Array(buf))
+          .map(b => b.toString(16).padStart(2, '0'))
+          .join('');
+      }
+
+      // 检查是否已有密码
+      const storedHash = localStorage.getItem(PW_KEY);
+
+      if (!storedHash) {
+        // 首次设置模式
+        isSetup = true;
+        title.textContent = '设置管理密码';
+        desc.textContent = '首次使用，请设置一个管理密码';
+        pw1.placeholder = '输入新密码（至少4位）';
+        pw2.style.display = 'block';
+        loginBtn.textContent = '✅ 设置密码';
+      }
+
+      function showError(msg) {
+        loginError.textContent = msg;
+        loginError.style.display = 'block';
+      }
+
+      function hideError() {
+        loginError.style.display = 'none';
+      }
+
+      loginBtn.addEventListener('click', async function() {
+        hideError();
+
+        if (isSetup) {
+          // 设置密码
+          const p1 = pw1.value.trim();
+          const p2 = pw2.value.trim();
+
+          if (!p1 || p1.length < 4) {
+            showError('密码至少需要 4 位');
+            return;
+          }
+          if (p1 !== p2) {
+            showError('两次输入的密码不一致');
+            return;
+          }
+
+          try {
+            const h = await hash(p1);
+            localStorage.setItem(PW_KEY, h);
+            sessionStorage.setItem(AUTH_KEY, '1');
+
+            loginBtn.textContent = '✅ 设置成功，跳转中...';
+            loginBtn.disabled = true;
+            setTimeout(function() {
+              window.location.href = '/index.html#admin';
+            }, 500);
+          } catch (e) {
+            showError('加密失败，请重试');
+          }
+        } else {
+          // 登录验证
+          const p = pw1.value.trim();
+
+          if (!p) {
+            showError('请输入密码');
+            return;
+          }
+
+          try {
+            const h = await hash(p);
+            if (h === storedHash) {
+              sessionStorage.setItem(AUTH_KEY, '1');
+
+              loginBtn.textContent = '✅ 验证通过，跳转中...';
+              loginBtn.disabled = true;
+              loginBtn.classList.add('btn-verified');
+              setTimeout(function() {
+                window.location.href = '/index.html#admin';
+              }, 400);
+            } else {
+              showError('密码错误，请重试');
+              pw1.value = '';
+              pw1.focus();
+            }
+          } catch (e) {
+            showError('验证失败，请重试');
+          }
+        }
+      });
+
+      // 回车键提交
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+          loginBtn.click();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
