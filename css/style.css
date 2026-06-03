@@ -1124,6 +1124,30 @@ body::before {
   }
 }
 
+/* ====== iOS Safari 专项适配 ====== */
+@supports (-webkit-touch-callout: none) {
+  /* iOS Safari 专用 */
+  body {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  input, textarea, select {
+    font-size: 16px !important; /* 阻止 iOS 自动缩放 */
+  }
+
+  .modal {
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+@supports (padding: max(0px)) {
+  .admin-page,
+  .home-page,
+  .result-page {
+    padding-bottom: max(var(--space-lg), env(safe-area-inset-bottom, 16px));
+  }
+}
+
 /* ====== 触摸设备优化 ====== */
 @media (hover: none) and (pointer: coarse) {
   .btn, .btn-lg, .option-btn, .btn-gold, .btn-primary, .btn-outline, .btn-share {

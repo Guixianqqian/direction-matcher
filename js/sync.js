@@ -1,140 +1,181 @@
 // ============================================
 // 方向匹配器 — 共享存储（jsonblob.com）
 // 解决用户浏览器和管理员后台之间的数据同步
+// 版本: ES5 兼容
 // ============================================
 
-const Sync = {
+var Sync = {
   BLOB_ID: '019e8d11-ecf2-7649-9b59-0f186efc44b0',
   BASE_URL: 'https://jsonblob.com/api/jsonBlob',
 
-  _url() {
+  _url: function() {
     return this.BASE_URL + '/' + this.BLOB_ID;
   },
 
   // 读取全部数据
-  async read() {
-    try {
-      const res = await fetch(this._url());
+  read: function() {
+    var self = this;
+    return fetch(this._url()).then(function(res) {
       if (!res.ok) throw new Error('Sync read failed: ' + res.status);
-      const data = await res.json();
-      return data.codes || {};
-    } catch (e) {
+      return res.json();
+    }).then(function(data) {
+      return (data && data.codes) || {};
+    }).catch(function(e) {
       console.warn('Sync.read failed, using local fallback:', e.message);
-      return this._localFallback();
-    }
+      return self._localFallback();
+    });
   },
 
   // 写入全部数据
-  async _write(codes) {
-    try {
-      const res = await fetch(this._url(), {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ codes }),
-      });
+  _write: function(codes) {
+    return fetch(this._url(), {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ codes: codes }),
+    }).then(function(res) {
       if (!res.ok) throw new Error('Sync write failed: ' + res.status);
       return true;
-    } catch (e) {
+    }).catch(function(e) {
       console.warn('Sync._write failed:', e.message);
       return false;
-    }
+    });
   },
 
   // 添加新解锁码
-  async addCode(code) {
-    const codes = await this.read();
-    if (!codes[code]) {
-      codes[code] = { time: Date.now(), activated: false };
-      await this._write(codes);
-    }
-    // 同时写本地备份
-    this._localAdd(code, false);
+  addCode: function(code) {
+    var self = this;
+    return this.read().then(function(codes) {
+      if (!codes[code]) {
+        codes[code] = { time: Date.now(), activated: false };
+        return self._write(codes);
+      }
+    }).then(function() {
+      self._localAdd(code, false);
+    }).catch(function(e) {
+      console.warn('Sync.addCode failed:', e.message);
+      self._localAdd(code, false);
+    });
   },
 
   // 激活解锁码
-  async activateCode(code) {
-    const codes = await this.read();
-    if (codes[code]) {
-      codes[code].activated = true;
-      codes[code].activatedAt = Date.now();
-      await this._write(codes);
-    }
-    // 同时更新本地
-    this._localActivate(code);
+  activateCode: function(code) {
+    var self = this;
+    return this.read().then(function(codes) {
+      if (codes[code]) {
+        codes[code].activated = true;
+        codes[code].activatedAt = Date.now();
+        return self._write(codes);
+      }
+    }).then(function() {
+      self._localActivate(code);
+    }).catch(function(e) {
+      console.warn('Sync.activateCode failed:', e.message);
+      self._localActivate(code);
+    });
   },
 
   // 停用解锁码
-  async deactivateCode(code) {
-    const codes = await this.read();
-    if (codes[code]) {
-      codes[code].activated = false;
-      delete codes[code].activatedAt;
-      await this._write(codes);
-    }
-    this._localDeactivate(code);
+  deactivateCode: function(code) {
+    var self = this;
+    return this.read().then(function(codes) {
+      if (codes[code]) {
+        codes[code].activated = false;
+        delete codes[code].activatedAt;
+        return self._write(codes);
+      }
+    }).then(function() {
+      self._localDeactivate(code);
+    }).catch(function(e) {
+      console.warn('Sync.deactivateCode failed:', e.message);
+      self._localDeactivate(code);
+    });
   },
 
   // 检查码是否已激活
-  async isActivated(code) {
-    const codes = await this.read();
-    return !!(codes[code] && codes[code].activated);
+  isActivated: function(code) {
+    return this.read().then(function(codes) {
+      return !!(codes[code] && codes[code].activated);
+    }).catch(function() {
+      return false;
+    });
   },
 
-  // 检查码是否已使用
-  async markUsed(code) {
-    const codes = await this.read();
-    if (codes[code]) {
-      codes[code].used = true;
-      codes[code].usedAt = Date.now();
-      await this._write(codes);
-    }
-    this._localMarkUsed(code);
+  // 标记码已使用
+  markUsed: function(code) {
+    var self = this;
+    return this.read().then(function(codes) {
+      if (codes[code]) {
+        codes[code].used = true;
+        codes[code].usedAt = Date.now();
+        return self._write(codes);
+      }
+    }).then(function() {
+      self._localMarkUsed(code);
+    }).catch(function(e) {
+      console.warn('Sync.markUsed failed:', e.message);
+      self._localMarkUsed(code);
+    });
   },
 
   // === 本地 fallback ===
-  _localFallback() {
+  _localFallback: function() {
     try {
-      const raw = localStorage.getItem('dm_issued_codes');
+      var raw = localStorage.getItem('dm_issued_codes');
       if (raw) {
-        const list = JSON.parse(raw);
-        const codes = {};
-        list.forEach(c => { codes[c.code] = { time: c.time, activated: !!c.activated, used: !!c.used, usedAt: c.usedAt, activatedAt: c.activatedAt }; });
+        var list = JSON.parse(raw);
+        var codes = {};
+        list.forEach(function(c) {
+          codes[c.code] = { time: c.time, activated: !!c.activated, used: !!c.used, usedAt: c.usedAt, activatedAt: c.activatedAt };
+        });
         return codes;
       }
-    } catch (e) {}
+    } catch(e) {}
     return {};
   },
 
-  _localAdd(code, activated) {
-    const issued = Renderer._getIssuedCodes();
-    issued.push({ code, time: Date.now(), activated, used: false });
+  _localAdd: function(code, activated) {
+    if (typeof Renderer === 'undefined' || !Renderer._getIssuedCodes) return;
+    var issued = Renderer._getIssuedCodes();
+    issued.push({ code: code, time: Date.now(), activated: !!activated, used: false });
     localStorage.setItem('dm_issued_codes', JSON.stringify(issued));
   },
 
-  _localActivate(code) {
-    const activated = Renderer._getActivatedCodes();
-    if (!activated.includes(code)) {
+  _localActivate: function(code) {
+    if (typeof Renderer === 'undefined' || !Renderer._getActivatedCodes) return;
+    var activated = Renderer._getActivatedCodes();
+    if (activated.indexOf(code) === -1) {
       activated.push(code);
       localStorage.setItem('dm_activated_codes', JSON.stringify(activated));
     }
-    const issued = Renderer._getIssuedCodes();
-    const f = issued.find(c => c.code === code);
+    var issued = Renderer._getIssuedCodes();
+    var f = null;
+    for (var i = 0; i < issued.length; i++) {
+      if (issued[i].code === code) { f = issued[i]; break; }
+    }
     if (f) { f.activated = true; f.activatedAt = Date.now(); }
     localStorage.setItem('dm_issued_codes', JSON.stringify(issued));
   },
 
-  _localDeactivate(code) {
-    const activated = Renderer._getActivatedCodes().filter(c => c !== code);
+  _localDeactivate: function(code) {
+    if (typeof Renderer === 'undefined' || !Renderer._getActivatedCodes) return;
+    var activated = Renderer._getActivatedCodes().filter(function(c) { return c !== code; });
     localStorage.setItem('dm_activated_codes', JSON.stringify(activated));
-    const issued = Renderer._getIssuedCodes();
-    const f = issued.find(c => c.code === code);
+    var issued = Renderer._getIssuedCodes();
+    var f = null;
+    for (var i = 0; i < issued.length; i++) {
+      if (issued[i].code === code) { f = issued[i]; break; }
+    }
     if (f) { f.activated = false; delete f.activatedAt; }
     localStorage.setItem('dm_issued_codes', JSON.stringify(issued));
   },
 
-  _localMarkUsed(code) {
-    const issued = Renderer._getIssuedCodes();
-    const f = issued.find(c => c.code === code);
+  _localMarkUsed: function(code) {
+    if (typeof Renderer === 'undefined' || !Renderer._getIssuedCodes) return;
+    var issued = Renderer._getIssuedCodes();
+    var f = null;
+    for (var i = 0; i < issued.length; i++) {
+      if (issued[i].code === code) { f = issued[i]; break; }
+    }
     if (f) { f.used = true; f.usedAt = Date.now(); }
     localStorage.setItem('dm_issued_codes', JSON.stringify(issued));
   },

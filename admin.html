@@ -30,39 +30,48 @@
   </div>
 
   <script>
+    // 全 ES5 语法 + 手动 polyfill，确保微信浏览器兼容
     (function() {
-      const PW_KEY = 'dm_admin_pw';
-      const AUTH_KEY = 'dm_admin_auth';
+      var PW_KEY = 'dm_admin_pw';
+      var AUTH_KEY = 'dm_admin_auth';
 
-      const title = document.getElementById('loginTitle');
-      const desc = document.getElementById('loginDesc');
-      const pw1 = document.getElementById('pw1');
-      const pw2 = document.getElementById('pw2');
-      const loginBtn = document.getElementById('loginBtn');
-      const loginError = document.getElementById('loginError');
-      const loginForm = document.getElementById('loginForm');
+      var title = document.getElementById('loginTitle');
+      var desc = document.getElementById('loginDesc');
+      var pw1 = document.getElementById('pw1');
+      var pw2 = document.getElementById('pw2');
+      var loginBtn = document.getElementById('loginBtn');
+      var loginError = document.getElementById('loginError');
 
-      let isSetup = false; // 首次设置密码 or 登录
+      var isSetup = false;
 
-      // 密码哈希（优先 SHA-256，降级为简单哈希）
-      async function hash(str) {
-        // 优先使用 Web Crypto API
-        var subtle = null;
+      // 简单哈希（不依赖 crypto API，全浏览器通用）
+      function hash(str) {
+        // 优先尝试 SHA-256
         try {
-          subtle = window.crypto && window.crypto.subtle;
+          if (window.crypto && window.crypto.subtle && window.crypto.subtle.digest) {
+            // 异步哈希需要在 click 里 await，这里返回 promise
+            return _sha256(str);
+          }
         } catch(e) {}
+        // 降级：FNV-1a hash
+        return Promise.resolve(_simpleHash(str));
+      }
 
-        if (subtle && subtle.digest) {
-          try {
-            var data = new TextEncoder().encode(str);
-            var buf = await subtle.digest('SHA-256', data);
-            return Array.from(new Uint8Array(buf))
-              .map(function(b) { return b.toString(16).padStart(2, '0'); })
-              .join('');
-          } catch(e) {}
-        }
+      function _sha256(str) {
+        var data = new TextEncoder().encode(str);
+        return window.crypto.subtle.digest('SHA-256', data).then(function(buf) {
+          var arr = new Uint8Array(buf);
+          var hex = '';
+          for (var i = 0; i < arr.length; i++) {
+            hex += ('00' + arr[i].toString(16)).slice(-2);
+          }
+          return hex;
+        }).catch(function() {
+          return _simpleHash(str);
+        });
+      }
 
-        // 降级：简单哈希（不依赖 crypto API）
+      function _simpleHash(str) {
         var h = 0;
         for (var i = 0; i < str.length; i++) {
           h = ((h << 5) - h + str.charCodeAt(i)) | 0;
@@ -72,10 +81,12 @@
       }
 
       // 检查是否已有密码
-      const storedHash = localStorage.getItem(PW_KEY);
+      var storedHash = null;
+      try {
+        storedHash = localStorage.getItem(PW_KEY);
+      } catch(e) {}
 
       if (!storedHash) {
-        // 首次设置模式
         isSetup = true;
         title.textContent = '设置管理密码';
         desc.textContent = '首次使用，请设置一个管理密码';
@@ -93,13 +104,12 @@
         loginError.style.display = 'none';
       }
 
-      loginBtn.addEventListener('click', async function() {
+      loginBtn.addEventListener('click', function() {
         hideError();
 
         if (isSetup) {
-          // 设置密码
-          const p1 = pw1.value.trim();
-          const p2 = pw2.value.trim();
+          var p1 = pw1.value.trim();
+          var p2 = pw2.value.trim();
 
           if (!p1 || p1.length < 4) {
             showError('密码至少需要 4 位');
@@ -110,32 +120,33 @@
             return;
           }
 
-          try {
-            const h = await hash(p1);
-            localStorage.setItem(PW_KEY, h);
-            sessionStorage.setItem(AUTH_KEY, '1');
+          hash(p1).then(function(h) {
+            try {
+              localStorage.setItem(PW_KEY, h);
+              sessionStorage.setItem(AUTH_KEY, '1');
+            } catch(e) {}
 
             loginBtn.textContent = '✅ 设置成功，跳转中...';
             loginBtn.disabled = true;
             setTimeout(function() {
               window.location.href = '/index.html#admin';
             }, 500);
-          } catch (e) {
+          }).catch(function(e) {
             showError('加密失败: ' + (e.message || '未知错误'));
-          }
+          });
         } else {
-          // 登录验证
-          const p = pw1.value.trim();
+          var p = pw1.value.trim();
 
           if (!p) {
             showError('请输入密码');
             return;
           }
 
-          try {
-            const h = await hash(p);
+          hash(p).then(function(h) {
             if (h === storedHash) {
-              sessionStorage.setItem(AUTH_KEY, '1');
+              try {
+                sessionStorage.setItem(AUTH_KEY, '1');
+              } catch(e) {}
 
               loginBtn.textContent = '✅ 验证通过，跳转中...';
               loginBtn.disabled = true;
@@ -148,13 +159,12 @@
               pw1.value = '';
               pw1.focus();
             }
-          } catch (e) {
+          }).catch(function(e) {
             showError('验证失败: ' + (e.message || '未知错误'));
-          }
+          });
         }
       });
 
-      // 回车键提交
       document.addEventListener('keydown', function(e) {
         if (e.key === 'Enter') {
           loginBtn.click();

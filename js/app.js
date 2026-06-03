@@ -579,6 +579,9 @@ const Renderer = {
           <div class="verify-section" style="margin-top:16px;">
             <input type="text" class="verify-input" id="verifyInput"
                    placeholder="输入 4 位解锁码" maxlength="4" autocomplete="off">
+            <p style="text-align:center;font-size:0.72rem;color:var(--color-text-muted, #606080);margin:8px 0;">— 或 —</p>
+            <input type="text" class="verify-input" id="activateKeyInput"
+                   placeholder="输入管理员给你的 6 位激活密钥" maxlength="6" autocomplete="off" style="text-transform:uppercase;">
             <p class="verify-error" id="verifyError" style="display:none;"></p>
           </div>
 
@@ -631,36 +634,65 @@ const Renderer = {
     const codeStatus = overlay.querySelector('#codeStatus');
     const copyCodeBtn = overlay.querySelector('#copyCodeBtn');
     const verifyInput = overlay.querySelector('#verifyInput');
+    const activateKeyInput = overlay.querySelector('#activateKeyInput');
     const confirmBtn = overlay.querySelector('#confirmPayBtn');
     const verifyError = overlay.querySelector('#verifyError');
 
-    // 检查码是否已激活（从共享存储读取）
-    const isActivated = async (code) => await Sync.isActivated(code);
+    // 激活密钥：离线方案，不依赖网络
+    // 原理：管理员后台用同样算法生成密钥 → 微信发给用户 → 用户输入 → 本地验证
+    const generateActivationKey = function(code) {
+      var h = 0;
+      var str = code + 'dm_secret_2026';
+      for (var i = 0; i < str.length; i++) {
+        h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+        h = (h * 16777619) | 0;
+      }
+      return Math.abs(h).toString(36).substring(0, 6).toUpperCase();
+    };
+
+    const verifyActivationKey = function(code, key) {
+      return generateActivationKey(code) === key.toUpperCase().trim();
+    };
+
+    // 检查码是否已激活（离线密钥 OR 共享存储）
+    const isActivated = async function(code) {
+      // 离线密钥激活（localStorage 记录）
+      var localKeys = {};
+      try { localKeys = JSON.parse(localStorage.getItem('dm_local_keys') || '{}'); } catch(e) {}
+      if (localKeys[code]) return true;
+      // 共享存储兜底
+      try { return await Sync.isActivated(code); } catch(e) { return false; }
+    };
 
     // 更新解锁按钮状态
     const updateUnlockState = async () => {
       if (!currentCode) return;
       const activated = await isActivated(currentCode);
       const inputVal = verifyInput.value.trim();
+      const keyVal = activateKeyInput ? activateKeyInput.value.trim() : '';
+      const keyValid = keyVal.length === 6 && verifyActivationKey(currentCode, keyVal);
 
       if (activated) {
         codeStatus.textContent = '✅ 已激活';
+        codeStatus.className = 'code-reveal-status code-active';
+      } else if (keyValid) {
+        codeStatus.textContent = '🔑 密钥有效';
         codeStatus.className = 'code-reveal-status code-active';
       } else {
         codeStatus.textContent = '⏳ 待激活';
         codeStatus.className = 'code-reveal-status code-pending';
       }
 
-      if (inputVal === currentCode && activated) {
+      if ((inputVal === currentCode && activated) || keyValid) {
         confirmBtn.disabled = false;
         confirmBtn.textContent = '✅ 解锁完整报告';
         confirmBtn.classList.add('btn-verified');
         verifyError.style.display = 'none';
-      } else if (inputVal === currentCode && !activated) {
+      } else if (inputVal === currentCode && !activated && !keyValid) {
         confirmBtn.disabled = true;
-        verifyError.textContent = '解锁码尚未激活，请添加客服微信发送付款截图';
+        verifyError.textContent = '解锁码尚未激活，请添加客服微信发送付款截图，或输入管理员给你的激活密钥';
         verifyError.style.display = 'block';
-      } else if (inputVal.length >= 2) {
+      } else if (inputVal.length >= 2 && inputVal !== currentCode) {
         confirmBtn.disabled = true;
         verifyError.textContent = '解锁码不匹配，请检查后重试';
         verifyError.style.display = 'block';
@@ -723,14 +755,28 @@ const Renderer = {
     });
 
     // 解锁码输入
-    verifyInput.addEventListener('input', () => { updateUnlockState(); });
+    verifyInput.addEventListener('input', function() { updateUnlockState(); });
+    activateKeyInput.addEventListener('input', function() { updateUnlockState(); });
 
-    // 解锁
-    confirmBtn.addEventListener('click', async () => {
-      const activated = await isActivated(currentCode);
-      if (verifyInput.value.trim() === currentCode && activated) {
+    // 解锁（支持激活密钥路径）
+    confirmBtn.addEventListener('click', async function() {
+      var codeMatch = verifyInput.value.trim() === currentCode;
+      var keyVal = activateKeyInput.value.trim();
+      var keyValid = keyVal.length === 6 && verifyActivationKey(currentCode, keyVal);
+      var activated = await isActivated(currentCode);
+
+      if ((codeMatch && activated) || keyValid) {
         clearInterval(pollTimer);
-        Sync.markUsed(currentCode);
+
+        // 如果是密钥激活，保存到本地
+        if (keyValid && !activated) {
+          var localKeys = {};
+          try { localKeys = JSON.parse(localStorage.getItem('dm_local_keys') || '{}'); } catch(e) {}
+          localKeys[currentCode] = true;
+          localStorage.setItem('dm_local_keys', JSON.stringify(localKeys));
+        }
+
+        try { Sync.markUsed(currentCode); } catch(e) {}
         Store.dispatch('UNLOCK');
         overlay.remove();
         Analytics.track('unlock_success', { code: currentCode });
@@ -938,8 +984,22 @@ const Renderer = {
           <table class="admin-table"><thead><tr><th>赛道</th><th>次数</th></tr></thead><tbody>${topR.map(([n,c])=>`<tr><td>${n}</td><td>${c}</td></tr>`).join('')||'<tr><td colspan="2">暂无数据</td></tr>'}</tbody></table>
         </div>
         <div class="admin-section">
+          <h2>🔧 手动激活（离线）</h2>
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center;">
+            <input type="text" class="verify-input" id="manualCodeInput"
+                   placeholder="输入用户解锁码" maxlength="4" autocomplete="off"
+                   style="width:140px;text-align:center;">
+            <button class="btn btn-gold btn-sm" id="genKeyBtn">🔑 生成激活密钥</button>
+          </div>
+          <div id="genKeyResult" style="text-align:center;margin-top:12px;display:none;">
+            <p style="font-size:0.78rem;color:var(--color-text-muted, #606080);">将此密钥通过微信发给用户</p>
+            <p style="font-size:2rem;font-weight:900;letter-spacing:0.3em;color:var(--color-accent, #7c5cfc);font-family:monospace;" id="genKeyValue"></p>
+            <button class="btn-copy-inline btn-sm" id="copyKeyBtn">📋 复制密钥</button>
+          </div>
+        </div>
+        <div class="admin-section">
           <h2>🔑 解锁码签发记录</h2>
-          <div id="codesTableContainer" style="text-align:center;color:var(--color-text-muted);">加载中...</div>
+          <div id="codesTableContainer" style="text-align:center;color:var(--color-text-muted, #606080);">加载中...</div>
         </div>
         <div class="admin-section">
           <h2>📉 答题流失</h2>
@@ -962,6 +1022,37 @@ const Renderer = {
     document.getElementById('changePwBtn').addEventListener('click',()=>this.showChangePwModal());
     document.getElementById('logoutBtn').addEventListener('click',()=>{sessionStorage.removeItem('dm_admin_auth');window.location.href='/';});
     document.getElementById('clearBtn').addEventListener('click',()=>{if(confirm('确定清除全部数据？不可恢复。')){Analytics.clearData();this.renderAdmin();}});
+
+    // 手动激活密钥生成
+    document.getElementById('genKeyBtn').addEventListener('click', function() {
+      var code = document.getElementById('manualCodeInput').value.trim();
+      if (!code || code.length < 4) return;
+      var h = 0;
+      var str = code + 'dm_secret_2026';
+      for (var i = 0; i < str.length; i++) {
+        h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+        h = (h * 16777619) | 0;
+      }
+      var key = Math.abs(h).toString(36).substring(0, 6).toUpperCase();
+      document.getElementById('genKeyValue').textContent = key;
+      document.getElementById('genKeyResult').style.display = 'block';
+    });
+    document.getElementById('copyKeyBtn').addEventListener('click', function() {
+      var key = document.getElementById('genKeyValue').textContent;
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(key);
+      } else {
+        var ta = document.createElement('textarea');
+        ta.value = key;
+        ta.style.cssText = 'position:fixed;left:-9999px;';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      document.getElementById('copyKeyBtn').textContent = '✅ 已复制';
+      setTimeout(function() { document.getElementById('copyKeyBtn').textContent = '📋 复制密钥'; }, 2000);
+    });
 
     // 异步加载解锁码表
     this._renderCodesTable();
@@ -1130,7 +1221,12 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-// === 启动 ===
-document.addEventListener('DOMContentLoaded', () => {
-  Renderer.init();
-});
+// === 启动（双保险：DOMContentLoaded + 立即检查） ===
+function bootApp() {
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', function() { Renderer.init(); });
+  } else {
+    Renderer.init();
+  }
+}
+bootApp();
