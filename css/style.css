@@ -1329,6 +1329,93 @@ body::before {
   color: var(--color-accent);
 }
 
+/* === 移动端适配 === */
+@media (max-width: 480px) {
+  .modal {
+    width: 94vw;
+    max-width: 94vw;
+    padding: 20px 16px;
+    border-radius: var(--radius-md);
+  }
+
+  .modal--wide {
+    max-width: 94vw;
+  }
+
+  .qr-row {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .qr-box {
+    width: 160px;
+    height: 160px;
+  }
+
+  .qr-box--medium {
+    width: 120px;
+    height: 120px;
+  }
+
+  .qr-box--small {
+    width: 80px;
+    height: 80px;
+  }
+
+  .code-reveal-value {
+    font-size: 2rem;
+    letter-spacing: 0.2em;
+  }
+
+  .admin-login-card {
+    padding: 28px 20px 24px;
+  }
+
+  .activate-guide {
+    padding: var(--space-sm);
+  }
+
+  .funnel-grid {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .funnel-arrow {
+    transform: rotate(90deg);
+  }
+
+  .admin-table {
+    font-size: 0.72rem;
+  }
+
+  .admin-table th,
+  .admin-table td {
+    padding: 6px 4px;
+  }
+
+  .btn-sm {
+    font-size: 0.72rem;
+    padding: 6px 10px;
+  }
+}
+
+/* 触摸优化 */
+@media (hover: none) and (pointer: coarse) {
+  .btn, .option-btn {
+    min-height: 44px;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  .option-btn {
+    padding: 14px 16px;
+  }
+
+  .admin-code-btn {
+    min-height: 36px;
+    min-width: 52px;
+  }
+}
+
 /* === 打印/导出优化 === */
 @media print {
   body::before { display: none; }

@@ -514,10 +514,8 @@ const Renderer = {
   showPayModal() {
     const genCode = () => {
       const code = String(Math.floor(1000 + Math.random() * 9000));
-      // 记录签发
-      const issued = this._getIssuedCodes();
-      issued.push({ code, time: Date.now(), activated: false });
-      localStorage.setItem('dm_issued_codes', JSON.stringify(issued));
+      // 写入共享存储 + 本地
+      Sync.addCode(code);
       Analytics.track('code_issued', { code });
       return code;
     };
@@ -631,13 +629,13 @@ const Renderer = {
     const confirmBtn = overlay.querySelector('#confirmPayBtn');
     const verifyError = overlay.querySelector('#verifyError');
 
-    // 检查码是否已激活
-    const isActivated = (code) => this._getActivatedCodes().includes(code);
+    // 检查码是否已激活（从共享存储读取）
+    const isActivated = async (code) => await Sync.isActivated(code);
 
     // 更新解锁按钮状态
-    const updateUnlockState = () => {
+    const updateUnlockState = async () => {
       if (!currentCode) return;
-      const activated = isActivated(currentCode);
+      const activated = await isActivated(currentCode);
       const inputVal = verifyInput.value.trim();
 
       if (activated) {
@@ -668,37 +666,66 @@ const Renderer = {
     };
 
     // 第一步 → 第二步
-    paidBtn.addEventListener('click', () => {
+    paidBtn.addEventListener('click', async () => {
       currentCode = genCode();
       revealedCode.textContent = currentCode;
       payStep.style.display = 'none';
       codeStep.style.display = 'block';
-      updateUnlockState();
+      await updateUnlockState();
 
-      // 轮询激活状态（每 3 秒检查一次）
-      pollTimer = setInterval(() => {
-        if (isActivated(currentCode)) {
-          updateUnlockState();
+      // 轮询激活状态（每 3 秒检查一次共享存储）
+      pollTimer = setInterval(async () => {
+        const activated = await isActivated(currentCode);
+        if (activated) {
+          await updateUnlockState();
           clearInterval(pollTimer);
         }
       }, 3000);
     });
 
-    // 一键复制
+    // 一键复制（兼容移动端/微信浏览器）
     copyCodeBtn.addEventListener('click', () => {
-      navigator.clipboard.writeText(currentCode);
-      copyCodeBtn.textContent = '✅ 已复制';
-      copyCodeBtn.classList.add('copied');
-      setTimeout(() => { copyCodeBtn.textContent = '📋 复制解锁码'; copyCodeBtn.classList.remove('copied'); }, 2000);
+      const text = currentCode;
+      // 现代浏览器
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+          copyCodeBtn.textContent = '✅ 已复制';
+          copyCodeBtn.classList.add('copied');
+          setTimeout(() => { copyCodeBtn.textContent = '📋 复制解锁码'; copyCodeBtn.classList.remove('copied'); }, 2000);
+        }).catch(() => fallbackCopy(text));
+      } else {
+        fallbackCopy(text);
+      }
+      function fallbackCopy(t) {
+        const ta = document.createElement('textarea');
+        ta.value = t;
+        ta.style.position = 'fixed';
+        ta.style.left = '-9999px';
+        ta.style.top = '-9999px';
+        document.body.appendChild(ta);
+        ta.focus();
+        ta.select();
+        try {
+          document.execCommand('copy');
+          copyCodeBtn.textContent = '✅ 已复制';
+          copyCodeBtn.classList.add('copied');
+        } catch(e) {
+          copyCodeBtn.textContent = '❌ 请手动复制';
+        }
+        document.body.removeChild(ta);
+        setTimeout(() => { copyCodeBtn.textContent = '📋 复制解锁码'; copyCodeBtn.classList.remove('copied'); }, 2000);
+      }
     });
 
     // 解锁码输入
-    verifyInput.addEventListener('input', updateUnlockState);
+    verifyInput.addEventListener('input', () => { updateUnlockState(); });
 
     // 解锁
-    confirmBtn.addEventListener('click', () => {
-      if (verifyInput.value.trim() === currentCode && isActivated(currentCode)) {
+    confirmBtn.addEventListener('click', async () => {
+      const activated = await isActivated(currentCode);
+      if (verifyInput.value.trim() === currentCode && activated) {
         clearInterval(pollTimer);
+        Sync.markUsed(currentCode);
         Store.dispatch('UNLOCK');
         overlay.remove();
         Analytics.track('unlock_success', { code: currentCode });
@@ -736,26 +763,12 @@ const Renderer = {
     } catch (e) { return []; }
   },
 
-  _activateCode(code) {
-    const activated = this._getActivatedCodes();
-    if (!activated.includes(code)) {
-      activated.push(code);
-      localStorage.setItem('dm_activated_codes', JSON.stringify(activated));
-    }
-    // 同步更新签发记录
-    const issued = this._getIssuedCodes();
-    const found = issued.find(c => c.code === code);
-    if (found) { found.activated = true; found.activatedAt = Date.now(); }
-    localStorage.setItem('dm_issued_codes', JSON.stringify(issued));
+  async _activateCode(code) {
+    await Sync.activateCode(code);
   },
 
-  _deactivateCode(code) {
-    const activated = this._getActivatedCodes().filter(c => c !== code);
-    localStorage.setItem('dm_activated_codes', JSON.stringify(activated));
-    const issued = this._getIssuedCodes();
-    const found = issued.find(c => c.code === code);
-    if (found) { found.activated = false; delete found.activatedAt; }
-    localStorage.setItem('dm_issued_codes', JSON.stringify(issued));
+  async _deactivateCode(code) {
+    await Sync.deactivateCode(code);
   },
 
   _markCodeUsed(code) {
@@ -921,24 +934,7 @@ const Renderer = {
         </div>
         <div class="admin-section">
           <h2>🔑 解锁码签发记录</h2>
-          ${(()=>{
-            const codes = this._getIssuedCodes();
-            if (codes.length === 0) return '<p style="text-align:center;color:var(--color-text-muted);">暂未签发过解锁码</p>';
-            return `<table class="admin-table"><thead><tr><th>解锁码</th><th>签发时间</th><th>激活</th><th>使用</th><th>操作</th></tr></thead><tbody>
-              ${codes.slice().reverse().slice(0, 50).map(c => `<tr>
-                <td style="font-family:monospace;letter-spacing:0.2em;">${c.code}</td>
-                <td>${new Date(c.time).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}</td>
-                <td style="color:${c.activated?'var(--color-success)':'var(--color-text-muted)'}">${c.activated ? '✅ 已激活' : '⏳ 待激活'}</td>
-                <td>${c.used ? '✅ ' + new Date(c.usedAt).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '-'}</td>
-                <td>
-                  ${c.activated
-                    ? `<button class="btn btn-outline btn-sm admin-code-btn" data-code="${c.code}" data-action="deactivate" style="font-size:0.7rem;padding:2px 8px;color:#ff4757;border-color:#ff4757;">停用</button>`
-                    : `<button class="btn btn-outline btn-sm admin-code-btn" data-code="${c.code}" data-action="activate" style="font-size:0.7rem;padding:2px 8px;color:#00d4aa;border-color:#00d4aa;">✅ 激活</button>`
-                  }
-                </td>
-              </tr>`).join('')}
-            </tbody></table>`;
-          })()}
+          <div id="codesTableContainer" style="text-align:center;color:var(--color-text-muted);">加载中...</div>
         </div>
         <div class="admin-section">
           <h2>📉 答题流失</h2>
@@ -962,19 +958,52 @@ const Renderer = {
     document.getElementById('logoutBtn').addEventListener('click',()=>{sessionStorage.removeItem('dm_admin_auth');window.location.href='/';});
     document.getElementById('clearBtn').addEventListener('click',()=>{if(confirm('确定清除全部数据？不可恢复。')){Analytics.clearData();this.renderAdmin();}});
 
-    // 解锁码管理：激活 / 停用
-    document.querySelectorAll('.admin-code-btn').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const code = btn.dataset.code;
-        const action = btn.dataset.action;
-        if (action === 'activate') {
-          this._activateCode(code);
-        } else if (action === 'deactivate') {
-          this._deactivateCode(code);
-        }
-        this.renderAdmin(); // 刷新面板
+    // 异步加载解锁码表
+    this._renderCodesTable();
+  },
+
+  async _renderCodesTable() {
+    const container = document.getElementById('codesTableContainer');
+    if (!container) return;
+    try {
+      const codes = await Sync.read();
+      const entries = Object.entries(codes).sort((a, b) => b[1].time - a[1].time).slice(0, 50);
+      if (entries.length === 0) {
+        container.innerHTML = '<p style="text-align:center;color:var(--color-text-muted);">暂未签发过解锁码</p>';
+        return;
+      }
+      container.innerHTML = `<table class="admin-table"><thead><tr><th>解锁码</th><th>签发时间</th><th>激活</th><th>使用</th><th>操作</th></tr></thead><tbody>
+        ${entries.map(([code, c]) => `<tr>
+          <td style="font-family:monospace;letter-spacing:0.2em;">${code}</td>
+          <td>${new Date(c.time).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'})}</td>
+          <td style="color:${c.activated?'var(--color-success)':'var(--color-text-muted)'}">${c.activated ? '✅ 已激活' : '⏳ 待激活'}</td>
+          <td>${c.used ? '✅ ' + new Date(c.usedAt).toLocaleString('zh-CN',{month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}) : '-'}</td>
+          <td>
+            ${c.activated
+              ? '<button class="btn btn-outline btn-sm admin-code-btn" data-code="' + code + '" data-action="deactivate" style="font-size:0.7rem;padding:2px 8px;color:#ff4757;border-color:#ff4757;">停用</button>'
+              : '<button class="btn btn-outline btn-sm admin-code-btn" data-code="' + code + '" data-action="activate" style="font-size:0.7rem;padding:2px 8px;color:#00d4aa;border-color:#00d4aa;">✅ 激活</button>'
+            }
+          </td>
+        </tr>`).join('')}
+      </tbody></table>`;
+
+      // 绑定激活/停用按钮
+      const self = this;
+      container.querySelectorAll('.admin-code-btn').forEach(btn => {
+        btn.addEventListener('click', async function() {
+          const code = this.dataset.code;
+          const action = this.dataset.action;
+          if (action === 'activate') {
+            await self._activateCode(code);
+          } else if (action === 'deactivate') {
+            await self._deactivateCode(code);
+          }
+          self._renderCodesTable(); // 刷新
+        });
       });
-    });
+    } catch(e) {
+      container.innerHTML = '<p style="text-align:center;color:var(--color-text-muted);">加载失败，请确认网络连接后刷新页面</p>';
+    }
   },
 
   // === 修改密码弹窗 ===
