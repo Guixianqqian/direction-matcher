@@ -861,7 +861,9 @@ const Renderer = {
   // SHA-256 密码哈希
   async _hashPw(str) {
     const data = new TextEncoder().encode(str);
-    const buf = await crypto.subtle.digest('SHA-256', data);
+    const subtle = (globalThis.crypto && globalThis.crypto.subtle) || (window.crypto && window.crypto.subtle);
+    if (!subtle) throw new Error('浏览器不支持 crypto API');
+    const buf = await subtle.digest('SHA-256', data);
     return Array.from(new Uint8Array(buf))
       .map(b => b.toString(16).padStart(2, '0'))
       .join('');

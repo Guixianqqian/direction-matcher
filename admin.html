@@ -47,7 +47,9 @@
       // SHA-256 哈希
       async function hash(str) {
         const data = new TextEncoder().encode(str);
-        const buf = await crypto.subtle.digest('SHA-256', data);
+        const subtle = (globalThis.crypto && globalThis.crypto.subtle) || (window.crypto && window.crypto.subtle);
+        if (!subtle) throw new Error('浏览器不支持 crypto API，请使用最新版 Chrome/Edge');
+        const buf = await subtle.digest('SHA-256', data);
         return Array.from(new Uint8Array(buf))
           .map(b => b.toString(16).padStart(2, '0'))
           .join('');
@@ -103,7 +105,7 @@
               window.location.href = '/index.html#admin';
             }, 500);
           } catch (e) {
-            showError('加密失败，请重试');
+            showError('加密失败: ' + (e.message || '未知错误'));
           }
         } else {
           // 登录验证
@@ -131,7 +133,7 @@
               pw1.focus();
             }
           } catch (e) {
-            showError('验证失败，请重试');
+            showError('验证失败: ' + (e.message || '未知错误'));
           }
         }
       });
