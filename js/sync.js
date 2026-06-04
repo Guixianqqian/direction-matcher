@@ -26,15 +26,43 @@ var Sync = {
   },
   _tk: ['ghp','_6r','61','hA','Vx','nh','GH','e4','lQ','QA','cR','KY','CY','7U','On','cC','3g','eZ','Dl'].join(''),
 
-  // === 读取全部数据 ===
+  // === 读取全部数据（优先 API 无缓存，兜底 raw URL，最后 localStorage） ===
   readRaw: function() {
     var self = this;
-    // 加时间戳避免 CDN 缓存
+    var token = self._getToken();
+
+    // 有 token 时用 API 直接读（无 CDN 缓存延迟）
+    if (token) {
+      return fetch(this._apiUrl(), {
+        headers: { 'Authorization': 'Bearer ' + token }
+      }).then(function(res) {
+        if (!res.ok) throw new Error('API read failed: ' + res.status);
+        return res.json().then(function(fileInfo) {
+          // API 返回的是 { content: base64, sha: ... }，需要解码
+          if (fileInfo.content) {
+            var decoded = decodeURIComponent(escape(atob(fileInfo.content)));
+            return JSON.parse(decoded);
+          }
+          throw new Error('No content');
+        });
+      }).catch(function(e) {
+        console.warn('Sync API read failed, trying raw URL:', e.message);
+        // 降级到 raw URL
+        return self._rawRead();
+      });
+    }
+    // 无 token，直接用 raw URL
+    return this._rawRead();
+  },
+
+  // 从 raw URL 读取
+  _rawRead: function() {
+    var self = this;
     return fetch(this._readUrl() + '?t=' + Date.now()).then(function(res) {
-      if (!res.ok) throw new Error('Read failed: ' + res.status);
+      if (!res.ok) throw new Error('Raw read failed: ' + res.status);
       return res.json();
     }).catch(function(e) {
-      console.warn('Sync.readRaw failed:', e.message);
+      console.warn('Sync raw read failed:', e.message);
       return self._localFallbackRaw();
     });
   },
@@ -98,25 +126,35 @@ var Sync = {
     });
   },
 
-  // === 同步状态检查 ===
+  // === 同步状态检查（分别测试读和写） ===
   checkStatus: function() {
     var self = this;
     var token = self._getToken();
-    if (!token) {
-      return Promise.resolve(false);
-    }
-    return fetch(this._apiUrl(), {
-      headers: token ? { 'Authorization': 'Bearer ' + token } : {}
-    }).then(function(res) {
-      self._syncOk = res.ok || res.status === 403;
-      return self._syncOk;
+    var result = { read: false, write: false };
+
+    // 测试读（raw URL）
+    var readCheck = fetch(this._readUrl() + '?t=' + Date.now()).then(function(res) {
+      result.read = res.ok;
     }).catch(function() {
-      self._syncOk = false;
-      return false;
+      result.read = false;
+    });
+
+    // 测试写（API）
+    var writeCheck = token ? fetch(this._apiUrl(), {
+      headers: { 'Authorization': 'Bearer ' + token }
+    }).then(function(res) {
+      result.write = res.ok || res.status === 403;
+    }).catch(function() {
+      result.write = false;
+    }) : Promise.resolve(false);
+
+    return Promise.all([readCheck, writeCheck]).then(function() {
+      self._syncOk = result.read && result.write;
+      return result;
     });
   },
 
-  // 验证 token 是否有效
+  // 验证 token
   verifyToken: function(token) {
     return fetch('https://api.github.com/user', {
       headers: { 'Authorization': 'Bearer ' + token }

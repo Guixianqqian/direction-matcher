@@ -883,37 +883,32 @@ const Renderer = {
         ctx.textAlign = 'right';
         ctx.fillText(`${match.score}% 匹配`, 725, y + 42);
 
-        // 收入和周期标签
+        // 收入（单独一行，避免重叠）
         ctx.fillStyle = '#b0b0d0';
-        ctx.font = '16px "PingFang SC", "Microsoft YaHei", sans-serif';
+        ctx.font = '15px "PingFang SC", "Microsoft YaHei", sans-serif';
         ctx.textAlign = 'left';
-        ctx.fillText(`💰 ${match.track.income}`, 75, y + 78);
-        ctx.fillText(`⏱️ ${match.track.timeToStart}`, 250, y + 78);
+        ctx.fillText('💰 ' + match.track.income + '  |  ⏱️ ' + match.track.timeToStart, 75, y + 78);
 
         // 匹配原因（最多2条）
         ctx.fillStyle = '#9090b8';
-        ctx.font = '15px "PingFang SC", "Microsoft YaHei", sans-serif';
-        match.details.slice(0, 2).forEach((d, j) => {
-          let detail = d;
-          if (detail.length > 38) detail = detail.slice(0, 36) + '…';
-          ctx.fillText(`✓ ${detail}`, 75, y + 112 + j * 30);
+        ctx.font = '14px "PingFang SC", "Microsoft YaHei", sans-serif';
+        match.details.slice(0, 2).forEach(function(d, j) {
+          var detail = d;
+          if (detail.length > 36) detail = detail.slice(0, 34) + '…';
+          ctx.fillText('✓ ' + detail, 75, y + 108 + j * 30);
         });
       });
 
       // 底部：文字在上，QR在下
-      const qrY = 1010;
+      var qrY = 1010;
       ctx.fillStyle = 'rgba(255,255,255,0.06)';
       ctx.fillRect(50, qrY - 15, 700, 195);
 
-      // 引导文字（QR上方）
+      // 引导文字（QR上方，不放网址）
       ctx.fillStyle = '#ffffff';
       ctx.font = 'bold 20px "PingFang SC", "Microsoft YaHei", sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('扫码测测你的赚钱方向 →', 400, qrY + 10);
-
-      ctx.fillStyle = '#9090b0';
-      ctx.font = '13px "PingFang SC", "Microsoft YaHei", sans-serif';
-      ctx.fillText('www.topxnc.com', 400, qrY + 32);
+      ctx.fillText('扫码测测你的赚钱方向 →', 400, qrY + 22);
     };
 
     // 加载 QR 码（放在文字下方，不重叠）
@@ -1158,20 +1153,25 @@ const Renderer = {
 
   // 同步状态指示
   async _updateSyncStatus() {
-    const el = document.getElementById('syncStatus');
+    var el = document.getElementById('syncStatus');
     if (!el) return;
-    const token = Sync._getToken();
-    if (!token) {
-      el.textContent = '⚪ 未设置跨设备同步';
-      el.style.color = '#9090b0';
-      return;
-    }
     try {
-      const ok = await Sync.checkStatus();
-      el.textContent = ok ? '🟢 云端同步正常' : '🔴 GitHub 连接失败';
-      el.style.color = ok ? 'var(--color-success)' : '#ff4757';
+      var st = await Sync.checkStatus();
+      if (st.read && st.write) {
+        el.textContent = '🟢 同步正常';
+        el.style.color = 'var(--color-success)';
+      } else if (st.read && !st.write) {
+        el.textContent = '🟡 读取正常 · 写入失败';
+        el.style.color = '#f0b90b';
+      } else if (!st.read && st.write) {
+        el.textContent = '🟡 写入正常 · 读取失败';
+        el.style.color = '#f0b90b';
+      } else {
+        el.textContent = '🔴 云端未连接';
+        el.style.color = '#ff4757';
+      }
     } catch(e) {
-      el.textContent = '🔴 GitHub 连接失败';
+      el.textContent = '🔴 检测失败';
       el.style.color = '#ff4757';
     }
   },
