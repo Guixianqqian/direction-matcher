@@ -950,11 +950,11 @@ const Renderer = {
         '<p style="text-align:center;color:#a0a0cc;font-size:0.7rem;margin-top:6px;">分享到朋友圈，让朋友也来测测 →</p>' +
         '</div>';
     } else {
-      // 桌面：尺寸约束 + 下载按钮
-      overlay.innerHTML = '<div class="modal" style="max-width:420px;padding:16px;background:#1a1a2e;border:1px solid var(--color-border);border-radius:var(--radius-lg);">' +
-        '<button class="modal-close" style="position:absolute;top:8px;right:12px;">&times;</button>' +
+      // 桌面：尺寸约束 + 下载按钮 + 滚动
+      overlay.innerHTML = '<div class="modal" style="max-width:420px;max-height:95vh;overflow-y:auto;padding:16px;background:#1a1a2e;border:1px solid var(--color-border);border-radius:var(--radius-lg);">' +
+        '<button class="modal-close" style="position:sticky;top:0;float:right;z-index:10;">&times;</button>' +
         '<h3 style="text-align:center;margin-bottom:10px;">🧬 我的赚钱DNA</h3>' +
-        '<img src="' + dataUrl + '" alt="赚钱DNA" style="width:100%;max-height:60vh;object-fit:contain;border-radius:8px;display:block;" />' +
+        '<img src="' + dataUrl + '" alt="赚钱DNA" style="width:100%;max-height:65vh;object-fit:contain;border-radius:8px;display:block;" />' +
         '<button class="btn btn-gold btn-lg" id="downloadCardBtn" style="width:100%;margin-top:12px;">📥 下载图片</button>' +
         '<p style="text-align:center;color:var(--color-text-muted);font-size:0.7rem;margin-top:6px;">分享到朋友圈，让朋友也来测测 →</p>' +
         '</div>';

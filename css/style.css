@@ -592,6 +592,9 @@ body::before {
   max-width: 380px;
   width: 100%;
   position: relative;
+  max-height: 90vh;
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
 }
 .modal--wide {
   max-width: 420px;
