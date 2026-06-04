@@ -991,26 +991,26 @@ const Renderer = {
         <div class="admin-section">
           <h2>📈 转化漏斗（累计）</h2>
           <div class="funnel-grid">
-            <div class="funnel-step"><span class="funnel-num">${f.visits}</span><span>访问</span></div>
+            <div class="funnel-step"><span class="funnel-num">${f.visits}</span><span class="funnel-label">访问</span></div>
             <div class="funnel-arrow">→</div>
-            <div class="funnel-step"><span class="funnel-num">${f.quizStarts}</span><span>开始</span><span class="funnel-rate">${rate(f.quizStarts,f.visits)}%</span></div>
+            <div class="funnel-step"><span class="funnel-num">${f.quizStarts}</span><span class="funnel-label">开始</span><span class="funnel-rate">${rate(f.quizStarts,f.visits)}%</span></div>
             <div class="funnel-arrow">→</div>
-            <div class="funnel-step"><span class="funnel-num">${f.quizCompletes}</span><span>完成</span><span class="funnel-rate">${rate(f.quizCompletes,f.quizStarts)}%</span></div>
+            <div class="funnel-step"><span class="funnel-num">${f.quizCompletes}</span><span class="funnel-label">完成</span><span class="funnel-rate">${rate(f.quizCompletes,f.quizStarts)}%</span></div>
             <div class="funnel-arrow">→</div>
-            <div class="funnel-step"><span class="funnel-num">${f.payClicks}</span><span>点付费</span><span class="funnel-rate">${rate(f.payClicks,f.paywallViews)}%</span></div>
+            <div class="funnel-step"><span class="funnel-num">${f.payClicks}</span><span class="funnel-label">点付费</span><span class="funnel-rate">${rate(f.payClicks,f.paywallViews)}%</span></div>
             <div class="funnel-arrow">→</div>
-            <div class="funnel-step highlight"><span class="funnel-num">${f.unlocks}</span><span>🔓付费</span><span class="funnel-rate">${rate(f.unlocks,f.payClicks)}%</span></div>
+            <div class="funnel-step highlight"><span class="funnel-num">${f.unlocks}</span><span class="funnel-label">🔓付费</span><span class="funnel-rate">${rate(f.unlocks,f.payClicks)}%</span></div>
           </div>
           <p style="font-size:0.78rem;color:var(--color-text-muted);margin-top:8px;">解锁失败 ${f.unlockFails} 次 | 分享 ${f.shares} 次</p>
         </div>
         <div class="admin-section">
           <h2>🕐 今日数据</h2>
           <div class="funnel-grid">
-            <div class="funnel-step"><span class="funnel-num">${ft.visits}</span><span>访问</span></div>
-            <div class="funnel-step"><span class="funnel-num">${ft.quizStarts}</span><span>开始</span></div>
-            <div class="funnel-step"><span class="funnel-num">${ft.quizCompletes}</span><span>完成</span></div>
-            <div class="funnel-step"><span class="funnel-num">${ft.payClicks}</span><span>点付费</span></div>
-            <div class="funnel-step highlight"><span class="funnel-num">${ft.unlocks}</span><span>🔓付费</span></div>
+            <div class="funnel-step"><span class="funnel-num">${ft.visits}</span><span class="funnel-label">访问</span></div>
+            <div class="funnel-step"><span class="funnel-num">${ft.quizStarts}</span><span class="funnel-label">开始</span></div>
+            <div class="funnel-step"><span class="funnel-num">${ft.quizCompletes}</span><span class="funnel-label">完成</span></div>
+            <div class="funnel-step"><span class="funnel-num">${ft.payClicks}</span><span class="funnel-label">点付费</span></div>
+            <div class="funnel-step highlight"><span class="funnel-num">${ft.unlocks}</span><span class="funnel-label">🔓付费</span></div>
           </div>
         </div>
         <div class="admin-section">

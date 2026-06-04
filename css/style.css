@@ -1,4 +1,4 @@
-/* ============================================
+﻿/* ============================================
    方向匹配器 — 样式系统
    架构: CSS Custom Properties + Mobile-First
    版本: v1.0.0 MVP
@@ -943,6 +943,15 @@ body::before {
   .paywall-hint {
     font-size: 0.72rem;
   }
+  /* 付费按钮：允许换行 + 全宽，防止溢出 */
+  .paywall .btn-gold.btn-lg {
+    white-space: normal;
+    width: 100%;
+    max-width: 300px;
+    font-size: 0.92rem;
+    padding: 14px 16px;
+    word-break: keep-all;
+  }
 
   /* 分享区 */
   .share-section {
@@ -1090,6 +1099,8 @@ body::before {
   .admin-section {
     padding: var(--space-md);
     margin-bottom: var(--space-sm);
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
   .admin-section h2 {
     font-size: 0.88rem;
@@ -1098,26 +1109,40 @@ body::before {
   /* Admin 漏斗 */
   .funnel-grid {
     flex-direction: column;
-    gap: 6px;
+    gap: 4px;
   }
   .funnel-step {
     min-width: auto;
     flex-direction: row;
     justify-content: space-between;
-    padding: 8px 14px;
+    align-items: center;
+    padding: 10px 14px;
     gap: 8px;
+    border-left: 3px solid var(--color-border, rgba(255,255,255,0.08));
+  }
+  .funnel-step.highlight {
+    border-left-color: var(--color-success, #00d4aa);
   }
   .funnel-arrow {
-    transform: rotate(90deg);
-    font-size: 0.8rem;
+    display: none;
   }
   .funnel-num {
     font-size: 1.2rem;
+    min-width: 32px;
+    text-align: center;
+  }
+  .funnel-label {
+    font-size: 0.78rem;
+  }
+  .funnel-rate {
+    font-size: 0.68rem;
+    color: var(--color-text-muted, #606080);
   }
 
   /* Admin 表格 */
   .admin-table {
     font-size: 0.68rem;
+    min-width: 100%;
   }
   .admin-table th,
   .admin-table td {
@@ -1571,6 +1596,15 @@ body::before {
   flex-wrap: wrap;
   gap: 8px;
   justify-content: center;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 4px 2px;
+}
+
+.funnel-label {
+  font-size: 0.82rem;
+  color: var(--color-text-secondary, #9090b0);
+  white-space: nowrap;
 }
 
 .funnel-step {
