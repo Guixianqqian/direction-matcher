@@ -19,7 +19,9 @@
     "5691": {
       "time": 1780563225958,
       "activated": true,
-      "activatedAt": 1780563275671
+      "activatedAt": 1780563275671,
+      "used": true,
+      "usedAt": 1780563295333
     },
     "6005": {
       "time": 1780561889377,
