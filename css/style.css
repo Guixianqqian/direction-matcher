@@ -1106,36 +1106,47 @@ body::before {
     font-size: 0.88rem;
   }
 
-  /* Admin 漏斗 */
+  /* Admin 漏斗 — 紧凑横向滚动 */
   .funnel-grid {
-    flex-direction: column;
-    gap: 4px;
+    flex-wrap: nowrap;
+    justify-content: flex-start;
+    gap: 6px;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    padding: 4px 0;
   }
   .funnel-step {
-    min-width: auto;
-    flex-direction: row;
-    justify-content: space-between;
+    flex: 0 0 auto;
+    min-width: 56px;
+    max-width: 80px;
+    flex-direction: column;
     align-items: center;
-    padding: 10px 14px;
-    gap: 8px;
-    border-left: 3px solid var(--color-border, rgba(255,255,255,0.08));
+    padding: 8px 6px;
+    gap: 2px;
+    border-left: none;
   }
   .funnel-step.highlight {
-    border-left-color: var(--color-success, #00d4aa);
+    border: 1px solid rgba(0,212,170,0.3);
   }
   .funnel-arrow {
-    display: none;
+    flex: 0 0 auto;
+    font-size: 0.75rem;
+    padding: 0 2px;
+    transform: none;
+    align-self: center;
+    color: var(--color-text-muted, #606080);
   }
   .funnel-num {
-    font-size: 1.2rem;
-    min-width: 32px;
+    font-size: 1rem;
+    min-width: auto;
     text-align: center;
   }
   .funnel-label {
-    font-size: 0.78rem;
+    font-size: 0.68rem;
+    white-space: nowrap;
   }
   .funnel-rate {
-    font-size: 0.68rem;
+    font-size: 0.62rem;
     color: var(--color-text-muted, #606080);
   }
 
@@ -1143,6 +1154,12 @@ body::before {
   .admin-table {
     font-size: 0.68rem;
     min-width: 100%;
+  }
+  /* 解锁码表容器：限制高度滚动 */
+  #codesTableContainer {
+    max-height: 360px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
   .admin-table th,
   .admin-table td {

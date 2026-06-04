@@ -603,12 +603,9 @@ const Renderer = {
           </button>
         </div>
 
-        <!-- 第二步：等待客服激活（初始隐藏） -->
+        <!-- 第二步：发送付款截图激活（初始隐藏） -->
         <div id="codeStep" style="display:none;">
-          <h3>🎉 已收到你的支付</h3>
-          <p style="font-size:0.82rem;color:var(--color-text-secondary);margin-bottom:12px;">
-            客服正在为你激活，请稍候…
-          </p>
+          <h3>📱 最后一步：发送付款截图</h3>
 
           <div class="code-reveal-box">
             <p class="code-reveal-label">🔑 你的解锁码</p>
@@ -617,8 +614,17 @@ const Renderer = {
             <button class="btn-copy-inline" id="copyCodeBtn">📋 复制解锁码</button>
           </div>
 
+          <!-- 微信联系引导 -->
+          <div class="activate-guide">
+            <div class="qr-box qr-box--medium" id="wechatContactQR">
+              <p style="color:var(--color-text-muted);">加载中...</p>
+            </div>
+            <p class="activate-title">📱 扫码添加微信</p>
+            <p class="activate-desc">发送<strong>解锁码 + 付款截图</strong>，激活后即可解锁</p>
+          </div>
+
           <div class="verify-section" style="margin-top:16px;">
-            <p class="verify-label" style="margin-bottom:6px;">输入解锁码（客服激活后自动生效）</p>
+            <p class="verify-label" style="margin-bottom:6px;">激活后输入解锁码验证</p>
             <input type="text" class="verify-input" id="verifyInput"
                    placeholder="输入 4 位解锁码" maxlength="4" autocomplete="off" inputmode="numeric">
             <p class="verify-error" id="verifyError" style="display:none;"></p>
@@ -629,7 +635,7 @@ const Renderer = {
           </button>
 
           <p style="text-align:center;font-size:0.72rem;color:var(--color-text-muted);margin-top:8px;">
-            ⏱️ 客服一般 5 分钟内激活 · 激活后解锁码永久有效
+            ⏱️ 发送截图后一般 5 分钟内激活 · 激活后永久有效
           </p>
         </div>
       </div>
@@ -655,6 +661,7 @@ const Renderer = {
     };
     loadQR('wechat', 'wechatQR');
     loadQR('alipay', 'alipayQR');
+    loadQR('wechat-contact', 'wechatContactQR');
 
 
     // 关闭 & 清理
@@ -1113,10 +1120,18 @@ const Renderer = {
         return;
       }
 
-      // 验证旧密码
-      const storedHash = localStorage.getItem('dm_admin_pw');
+      // 验证旧密码：先查共享存储，再查本地
       const oldHash = await this._hashPw(old);
-      if (storedHash && oldHash !== storedHash) {
+      let validOld = false;
+      try {
+        const sharedPw = await Sync.getPassword();
+        if (sharedPw && oldHash === sharedPw) { validOld = true; }
+      } catch(e) {}
+      if (!validOld) {
+        const localPw = localStorage.getItem('dm_admin_pw');
+        if (localPw && oldHash === localPw) { validOld = true; }
+      }
+      if (!validOld) {
         showErr('旧密码错误');
         return;
       }
@@ -1130,8 +1145,9 @@ const Renderer = {
         return;
       }
 
-      // 更新密码
+      // 更新密码：写共享存储 + 本地
       const newHash = await this._hashPw(n1);
+      try { await Sync.setPassword(newHash); } catch(e) {}
       localStorage.setItem('dm_admin_pw', newHash);
 
       confirmBtn.textContent = '✅ 密码已更新';

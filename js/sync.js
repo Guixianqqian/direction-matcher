@@ -1,56 +1,103 @@
 // ============================================
 // 方向匹配器 — 共享存储（jsonblob.com）
 // 解决用户浏览器和管理员后台之间的数据同步
-// 版本: ES5 兼容
+// 版本: ES5 兼容 + 密码同步
 // ============================================
 
 var Sync = {
   BLOB_ID: '019e8d11-ecf2-7649-9b59-0f186efc44b0',
   BASE_URL: 'https://jsonblob.com/api/jsonBlob',
+  DEFAULT_PASSWORD: 'topxnc2026',
 
   _url: function() {
     return this.BASE_URL + '/' + this.BLOB_ID;
   },
 
   // 读取全部数据
-  read: function() {
+  readRaw: function() {
     var self = this;
     return fetch(this._url()).then(function(res) {
       if (!res.ok) throw new Error('Sync read failed: ' + res.status);
       return res.json();
-    }).then(function(data) {
-      return (data && data.codes) || {};
     }).catch(function(e) {
-      console.warn('Sync.read failed, using local fallback:', e.message);
-      return self._localFallback();
+      console.warn('Sync.readRaw failed:', e.message);
+      return self._localFallbackRaw();
+    });
+  },
+
+  // 读取解锁码
+  read: function() {
+    return this.readRaw().then(function(data) {
+      return (data && data.codes) || {};
+    }).catch(function() {
+      return {};
     });
   },
 
   // 写入全部数据
-  _write: function(codes) {
+  _writeRaw: function(data) {
     return fetch(this._url(), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ codes: codes }),
+      body: JSON.stringify(data),
     }).then(function(res) {
       if (!res.ok) throw new Error('Sync write failed: ' + res.status);
       return true;
     }).catch(function(e) {
-      console.warn('Sync._write failed:', e.message);
+      console.warn('Sync._writeRaw failed:', e.message);
       return false;
     });
   },
 
+  // === 密码管理 ===
+
+  // 获取密码哈希（共享存储 > 本地 > 默认密码哈希）
+  getPassword: function() {
+    var self = this;
+    return this.readRaw().then(function(data) {
+      if (data && data.password) {
+        // 同时存一份到本地
+        try { localStorage.setItem('dm_admin_pw', data.password); } catch(e) {}
+        return data.password;
+      }
+      // 无共享密码时返回 null（admin.html 会用默认密码）
+      return null;
+    }).catch(function() {
+      return null;
+    });
+  },
+
+  // 设置密码哈希（写入共享存储 + 本地）
+  setPassword: function(hash) {
+    var self = this;
+    // 先存本地
+    try { localStorage.setItem('dm_admin_pw', hash); } catch(e) {}
+    // 再写共享
+    return this.readRaw().then(function(data) {
+      if (!data) data = { codes: {} };
+      data.password = hash;
+      return self._writeRaw(data);
+    }).catch(function(e) {
+      console.warn('Sync.setPassword failed:', e.message);
+      return false;
+    });
+  },
+
+  // === 解锁码管理 ===
+
   // 添加新解锁码
   addCode: function(code) {
     var self = this;
-    return this.read().then(function(codes) {
-      if (!codes[code]) {
-        codes[code] = { time: Date.now(), activated: false };
-        return self._write(codes);
+    return this.readRaw().then(function(data) {
+      if (!data) data = { codes: {} };
+      if (!data.codes) data.codes = {};
+      if (!data.codes[code]) {
+        data.codes[code] = { time: Date.now(), activated: false };
+        return self._writeRaw(data);
       }
-    }).then(function() {
-      self._localAdd(code, false);
+      return true;
+    }).then(function(ok) {
+      if (ok) self._localAdd(code, false);
     }).catch(function(e) {
       console.warn('Sync.addCode failed:', e.message);
       self._localAdd(code, false);
@@ -60,14 +107,13 @@ var Sync = {
   // 激活解锁码
   activateCode: function(code) {
     var self = this;
-    return this.read().then(function(codes) {
-      if (codes[code]) {
-        codes[code].activated = true;
-        codes[code].activatedAt = Date.now();
-        return self._write(codes);
-      }
-    }).then(function() {
-      self._localActivate(code);
+    return this.readRaw().then(function(data) {
+      if (!data || !data.codes || !data.codes[code]) return false;
+      data.codes[code].activated = true;
+      data.codes[code].activatedAt = Date.now();
+      return self._writeRaw(data);
+    }).then(function(ok) {
+      if (ok) self._localActivate(code);
     }).catch(function(e) {
       console.warn('Sync.activateCode failed:', e.message);
       self._localActivate(code);
@@ -77,14 +123,13 @@ var Sync = {
   // 停用解锁码
   deactivateCode: function(code) {
     var self = this;
-    return this.read().then(function(codes) {
-      if (codes[code]) {
-        codes[code].activated = false;
-        delete codes[code].activatedAt;
-        return self._write(codes);
-      }
-    }).then(function() {
-      self._localDeactivate(code);
+    return this.readRaw().then(function(data) {
+      if (!data || !data.codes || !data.codes[code]) return false;
+      data.codes[code].activated = false;
+      delete data.codes[code].activatedAt;
+      return self._writeRaw(data);
+    }).then(function(ok) {
+      if (ok) self._localDeactivate(code);
     }).catch(function(e) {
       console.warn('Sync.deactivateCode failed:', e.message);
       self._localDeactivate(code);
@@ -103,14 +148,13 @@ var Sync = {
   // 标记码已使用
   markUsed: function(code) {
     var self = this;
-    return this.read().then(function(codes) {
-      if (codes[code]) {
-        codes[code].used = true;
-        codes[code].usedAt = Date.now();
-        return self._write(codes);
-      }
-    }).then(function() {
-      self._localMarkUsed(code);
+    return this.readRaw().then(function(data) {
+      if (!data || !data.codes || !data.codes[code]) return false;
+      data.codes[code].used = true;
+      data.codes[code].usedAt = Date.now();
+      return self._writeRaw(data);
+    }).then(function(ok) {
+      if (ok) self._localMarkUsed(code);
     }).catch(function(e) {
       console.warn('Sync.markUsed failed:', e.message);
       self._localMarkUsed(code);
@@ -118,6 +162,13 @@ var Sync = {
   },
 
   // === 本地 fallback ===
+  _localFallbackRaw: function() {
+    var codes = this._localFallback();
+    var password = null;
+    try { password = localStorage.getItem('dm_admin_pw'); } catch(e) {}
+    return { codes: codes, password: password || null };
+  },
+
   _localFallback: function() {
     try {
       var raw = localStorage.getItem('dm_issued_codes');
