@@ -1035,8 +1035,26 @@ const Renderer = {
     const container = document.getElementById('codesTableContainer');
     if (!container) return;
     try {
-      const codes = await Sync.read();
-      const entries = Object.entries(codes).sort((a, b) => b[1].time - a[1].time).slice(0, 50);
+      // 从共享存储读取
+      let codes = await Sync.read();
+
+      // 合并本地 localStorage 数据（防止 jsonblob 返回空数据）
+      try {
+        const localRaw = localStorage.getItem('dm_issued_codes');
+        if (localRaw) {
+          const localList = JSON.parse(localRaw);
+          localList.forEach(function(c) {
+            if (!codes[c.code]) {
+              codes[c.code] = { time: c.time, activated: !!c.activated, used: !!c.used, usedAt: c.usedAt, activatedAt: c.activatedAt };
+            } else {
+              // 共享存储优先，但补充缺失字段
+              if (codes[c.code].time == null) codes[c.code].time = c.time;
+            }
+          });
+        }
+      } catch(e) {}
+
+      const entries = Object.entries(codes).sort((a, b) => (b[1].time || 0) - (a[1].time || 0)).slice(0, 50);
       if (entries.length === 0) {
         container.innerHTML = '<p style="text-align:center;color:var(--color-text-muted);">暂未签发过解锁码</p>';
         return;

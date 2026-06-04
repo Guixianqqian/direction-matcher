@@ -85,9 +85,12 @@ var Sync = {
 
   // === 解锁码管理 ===
 
-  // 添加新解锁码
+  // 添加新解锁码（始终写本地 + 尝试写共享）
   addCode: function(code) {
     var self = this;
+    // 先写本地，保证面板立即可见
+    self._localAdd(code, false);
+    // 再尝试写共享存储
     return this.readRaw().then(function(data) {
       if (!data) data = { codes: {} };
       if (!data.codes) data.codes = {};
@@ -96,50 +99,54 @@ var Sync = {
         return self._writeRaw(data);
       }
       return true;
-    }).then(function(ok) {
-      if (ok) self._localAdd(code, false);
     }).catch(function(e) {
-      console.warn('Sync.addCode failed:', e.message);
-      self._localAdd(code, false);
+      console.warn('Sync.addCode shared write failed:', e.message);
     });
   },
 
-  // 激活解锁码
+  // 激活解锁码（先写本地，再写共享）
   activateCode: function(code) {
     var self = this;
+    self._localActivate(code);
     return this.readRaw().then(function(data) {
       if (!data || !data.codes || !data.codes[code]) return false;
       data.codes[code].activated = true;
       data.codes[code].activatedAt = Date.now();
       return self._writeRaw(data);
-    }).then(function(ok) {
-      if (ok) self._localActivate(code);
     }).catch(function(e) {
-      console.warn('Sync.activateCode failed:', e.message);
-      self._localActivate(code);
+      console.warn('Sync.activateCode shared write failed:', e.message);
     });
   },
 
   // 停用解锁码
   deactivateCode: function(code) {
     var self = this;
+    self._localDeactivate(code);
     return this.readRaw().then(function(data) {
       if (!data || !data.codes || !data.codes[code]) return false;
       data.codes[code].activated = false;
       delete data.codes[code].activatedAt;
       return self._writeRaw(data);
-    }).then(function(ok) {
-      if (ok) self._localDeactivate(code);
     }).catch(function(e) {
-      console.warn('Sync.deactivateCode failed:', e.message);
-      self._localDeactivate(code);
+      console.warn('Sync.deactivateCode shared write failed:', e.message);
     });
   },
 
-  // 检查码是否已激活
+  // 检查码是否已激活（先查共享，再查本地）
   isActivated: function(code) {
     return this.read().then(function(codes) {
-      return !!(codes[code] && codes[code].activated);
+      if (codes[code] && codes[code].activated) return true;
+      // 降级查本地
+      try {
+        var localRaw = localStorage.getItem('dm_issued_codes');
+        if (localRaw) {
+          var list = JSON.parse(localRaw);
+          for (var i = 0; i < list.length; i++) {
+            if (list[i].code === code && list[i].activated) return true;
+          }
+        }
+      } catch(e) {}
+      return false;
     }).catch(function() {
       return false;
     });
@@ -148,16 +155,14 @@ var Sync = {
   // 标记码已使用
   markUsed: function(code) {
     var self = this;
+    self._localMarkUsed(code);
     return this.readRaw().then(function(data) {
       if (!data || !data.codes || !data.codes[code]) return false;
       data.codes[code].used = true;
       data.codes[code].usedAt = Date.now();
       return self._writeRaw(data);
-    }).then(function(ok) {
-      if (ok) self._localMarkUsed(code);
     }).catch(function(e) {
-      console.warn('Sync.markUsed failed:', e.message);
-      self._localMarkUsed(code);
+      console.warn('Sync.markUsed shared write failed:', e.message);
     });
   },
 
