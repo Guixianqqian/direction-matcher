@@ -37,7 +37,8 @@
     },
     "9010": {
       "time": 1780563087021,
-      "activated": false
+      "activated": true,
+      "activatedAt": 1780563121522
     }
   }
 }
