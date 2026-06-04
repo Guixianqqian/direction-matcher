@@ -20,9 +20,10 @@ var Sync = {
     return 'https://api.github.com/repos/' + this.REPO_OWNER + '/' + this.REPO_NAME + '/contents/' + this.FILE_PATH;
   },
 
-  // 获取 GitHub token
+  // 获取 GitHub token（优先 localStorage，兜底硬编码）
   _getToken: function() {
-    try { return localStorage.getItem('dm_gh_token') || ''; } catch(e) { return ''; }
+    try { return localStorage.getItem('dm_gh_token') || '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'; }
+    catch(e) { return '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'; }
   },
 
   // === 读取全部数据 ===

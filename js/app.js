@@ -996,7 +996,7 @@ const Renderer = {
     this.root.innerHTML = `
       <div class="page admin-page">
         <h1>📊 方向匹配器 · 数据后台</h1>
-        ${localStorage.getItem('dm_gh_token') ? '' : '<div style="background:rgba(240,185,11,0.1);border:1px solid rgba(240,185,11,0.3);border-radius:8px;padding:10px 14px;margin-bottom:12px;text-align:center;"><p style="color:#f0b90b;font-size:0.82rem;font-weight:600;">⚠️ 跨设备同步未启用</p><p style="color:#9090b0;font-size:0.72rem;">其他设备的解锁码无法同步到此面板<br>请点击下方「🔗 跨设备同步」设置 GitHub Token</p></div>'}
+        ${(localStorage.getItem('dm_gh_token') || Sync._getToken()) ? '' : '<div style="background:rgba(240,185,11,0.1);border:1px solid rgba(240,185,11,0.3);border-radius:8px;padding:10px 14px;margin-bottom:12px;text-align:center;"><p style="color:#f0b90b;font-size:0.82rem;font-weight:600;">⚠️ 跨设备同步未启用</p><p style="color:#9090b0;font-size:0.72rem;">点击下方「🔗 跨设备同步」设置 Token</p></div>'}
         <div class="admin-section">
           <h2>📈 转化漏斗（累计）</h2>
           <div class="funnel-grid">
@@ -1160,7 +1160,7 @@ const Renderer = {
   async _updateSyncStatus() {
     const el = document.getElementById('syncStatus');
     if (!el) return;
-    const token = localStorage.getItem('dm_gh_token') || '';
+    const token = Sync._getToken();
     if (!token) {
       el.textContent = '⚪ 未设置跨设备同步';
       el.style.color = '#9090b0';
