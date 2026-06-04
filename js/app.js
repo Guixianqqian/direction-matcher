@@ -1010,8 +1010,16 @@ const Renderer = {
             <button class="btn btn-outline btn-sm" id="exportBtn">📥 导出 JSON</button>
             <button class="btn btn-outline btn-sm" id="refreshBtn">🔄 刷新</button>
             <button class="btn btn-outline btn-sm" id="changePwBtn">🔒 修改密码</button>
+            <button class="btn btn-outline btn-sm" id="setTokenBtn" style="color:#f0b90b;border-color:#f0b90b;" title="设置 GitHub Token 以启用跨设备同步">🔗 跨设备同步</button>
             <button class="btn btn-outline btn-sm" id="logoutBtn" style="color:#ff4757;border-color:#ff4757;">🚪 退出登录</button>
             <button class="btn btn-outline btn-sm" id="clearBtn" style="color:#ffa502;border-color:#ffa502;">🗑️ 清除数据</button>
+          </div>
+          <div id="syncHelp" style="text-align:center;margin-top:10px;font-size:0.72rem;color:var(--color-text-muted);display:none;">
+            <p>📌 跨设备同步需要 GitHub Token</p>
+            <p style="margin-top:4px;">👉 <a href="https://github.com/settings/tokens" target="_blank" style="color:#7c5cfc;">点此创建 Token</a>，勾选 <b>public_repo</b> 权限</p>
+            <input type="text" class="verify-input" id="ghTokenInput" placeholder="粘贴 GitHub Token" autocomplete="off" style="width:100%;max-width:300px;margin-top:8px;font-size:0.75rem;">
+            <button class="btn btn-primary btn-sm" id="saveTokenBtn" style="margin-top:6px;">💾 保存</button>
+            <p id="tokenMsg" style="font-size:0.7rem;margin-top:4px;"></p>
           </div>
         </div>
         <p class="footer-note">访问 /admin | 数据仅存本地</p>
@@ -1023,6 +1031,29 @@ const Renderer = {
     document.getElementById('clearBtn').addEventListener('click',()=>{if(confirm('确定清除全部数据？不可恢复。')){Analytics.clearData();this.renderAdmin();}});
 
 
+
+    // GitHub Token 设置
+    document.getElementById('setTokenBtn').addEventListener('click', () => {
+      const help = document.getElementById('syncHelp');
+      help.style.display = help.style.display === 'none' ? 'block' : 'none';
+    });
+    document.getElementById('saveTokenBtn').addEventListener('click', async () => {
+      const input = document.getElementById('ghTokenInput');
+      const msg = document.getElementById('tokenMsg');
+      const token = input.value.trim();
+      if (!token) { msg.textContent = '请输入 Token'; msg.style.color = '#ff4757'; return; }
+      msg.textContent = '验证中…'; msg.style.color = '#9090b0';
+      const valid = await Sync.verifyToken(token);
+      if (valid) {
+        localStorage.setItem('dm_gh_token', token);
+        msg.textContent = '✅ Token 有效，已保存！跨设备同步已启用';
+        msg.style.color = '#00d4aa';
+        setTimeout(() => { document.getElementById('syncHelp').style.display = 'none'; this._updateSyncStatus(); }, 1500);
+      } else {
+        msg.textContent = '❌ Token 无效，请检查后重试';
+        msg.style.color = '#ff4757';
+      }
+    });
 
     // 异步加载解锁码表 + 自动刷新
     this._renderCodesTable();
@@ -1098,12 +1129,18 @@ const Renderer = {
   async _updateSyncStatus() {
     const el = document.getElementById('syncStatus');
     if (!el) return;
+    const token = localStorage.getItem('dm_gh_token') || '';
+    if (!token) {
+      el.textContent = '⚪ 未设置跨设备同步';
+      el.style.color = '#9090b0';
+      return;
+    }
     try {
       const ok = await Sync.checkStatus();
-      el.textContent = ok ? '🟢 云端同步正常' : '🔴 云端未连接';
+      el.textContent = ok ? '🟢 云端同步正常' : '🔴 GitHub 连接失败';
       el.style.color = ok ? 'var(--color-success)' : '#ff4757';
     } catch(e) {
-      el.textContent = '🔴 云端未连接';
+      el.textContent = '🔴 GitHub 连接失败';
       el.style.color = '#ff4757';
     }
   },

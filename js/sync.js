@@ -1,26 +1,36 @@
 // ============================================
-// 方向匹配器 — 共享存储（jsonblob.com）
-// 解决用户浏览器和管理员后台之间的数据同步
-// 版本: ES5 兼容 + 密码同步
+// 方向匹配器 — 共享存储（GitHub 仓库文件）
+// 国内可访问，读取无需token，写入需要GitHub token
 // ============================================
 
 var Sync = {
-  BLOB_ID: (function() {
-    try { return localStorage.getItem('dm_blob_id') || '019e8d11-ecf2-7649-9b59-0f186efc44b0'; }
-    catch(e) { return '019e8d11-ecf2-7649-9b59-0f186efc44b0'; }
-  })(),
-  BASE_URL: 'https://jsonblob.com/api/jsonBlob',
+  // GitHub 仓库信息
+  REPO_OWNER: 'Guixianqqian',
+  REPO_NAME: 'direction-matcher',
+  FILE_PATH: 'data/sync.json',
   DEFAULT_PASSWORD: 'topxnc2026',
 
-  _url: function() {
-    return this.BASE_URL + '/' + this.BLOB_ID;
+  // 读取 URL（raw.githubusercontent.com 国内可访问）
+  _readUrl: function() {
+    return 'https://raw.githubusercontent.com/' + this.REPO_OWNER + '/' + this.REPO_NAME + '/main/' + this.FILE_PATH;
   },
 
-  // 读取全部数据
+  // API URL（需要 token 写入）
+  _apiUrl: function() {
+    return 'https://api.github.com/repos/' + this.REPO_OWNER + '/' + this.REPO_NAME + '/contents/' + this.FILE_PATH;
+  },
+
+  // 获取 GitHub token
+  _getToken: function() {
+    try { return localStorage.getItem('dm_gh_token') || ''; } catch(e) { return ''; }
+  },
+
+  // === 读取全部数据 ===
   readRaw: function() {
     var self = this;
-    return fetch(this._url()).then(function(res) {
-      if (!res.ok) throw new Error('Sync read failed: ' + res.status);
+    // 加时间戳避免 CDN 缓存
+    return fetch(this._readUrl() + '?t=' + Date.now()).then(function(res) {
+      if (!res.ok) throw new Error('Read failed: ' + res.status);
       return res.json();
     }).catch(function(e) {
       console.warn('Sync.readRaw failed:', e.message);
@@ -37,23 +47,47 @@ var Sync = {
     });
   },
 
-  // 写入全部数据（自动重建 blob 如果不存在）
-  _writeRaw: function(data, retry) {
+  // === 写入（需要 token） ===
+  _writeRaw: function(data) {
     var self = this;
-    if (typeof retry === 'undefined') retry = true;
-    return fetch(this._url(), {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
+    var token = self._getToken();
+    if (!token) {
+      console.warn('Sync: 未设置 GitHub Token，仅保存到本地');
+      self._syncOk = false;
+      return Promise.resolve(false);
+    }
+
+    // 先获取文件 SHA（GitHub API 要求）
+    return fetch(this._apiUrl(), {
+      headers: { 'Authorization': 'Bearer ' + token }
     }).then(function(res) {
       if (!res.ok) {
-        if (res.status === 404 && retry) {
-          // Blob 不存在或过期 → 创建新的
-          console.warn('Sync: blob not found, creating new one...');
-          return self._createBlob(data);
+        // token 无效或文件不存在
+        if (res.status === 401 || res.status === 403) {
+          console.warn('Sync: GitHub Token 无效，请在管理后台重新设置');
+          self._syncOk = false;
+          throw new Error('Token invalid');
         }
-        throw new Error('Sync write failed: ' + res.status);
+        throw new Error('Get SHA failed: ' + res.status);
       }
+      return res.json();
+    }).then(function(fileInfo) {
+      // 写入文件
+      var content = btoa(unescape(encodeURIComponent(JSON.stringify(data, null, 2))));
+      return fetch(self._apiUrl(), {
+        method: 'PUT',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          message: 'sync: update data',
+          content: content,
+          sha: fileInfo.sha
+        })
+      });
+    }).then(function(res) {
+      if (!res.ok) throw new Error('Write failed: ' + res.status);
       self._syncOk = true;
       return true;
     }).catch(function(e) {
@@ -63,41 +97,31 @@ var Sync = {
     });
   },
 
-  // 创建新 blob
-  _createBlob: function(data) {
+  // === 同步状态检查 ===
+  checkStatus: function() {
     var self = this;
-    return fetch(this.BASE_URL, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data),
+    var token = self._getToken();
+    if (!token) {
+      return Promise.resolve(false);
+    }
+    return fetch(this._apiUrl(), {
+      headers: token ? { 'Authorization': 'Bearer ' + token } : {}
     }).then(function(res) {
-      if (!res.ok) throw new Error('Create blob failed: ' + res.status);
-      // 从 Location header 提取新 ID
-      var loc = res.headers.get('Location') || '';
-      var parts = loc.split('/');
-      var newId = parts[parts.length - 1];
-      if (newId && newId.length > 10) {
-        self.BLOB_ID = newId;
-        try { localStorage.setItem('dm_blob_id', newId); } catch(e) {}
-        console.log('Sync: new blob created:', newId);
-      }
-      self._syncOk = true;
-      return true;
-    }).catch(function(e) {
-      console.warn('Sync._createBlob failed:', e.message);
+      self._syncOk = res.ok || res.status === 403;
+      return self._syncOk;
+    }).catch(function() {
       self._syncOk = false;
       return false;
     });
   },
 
-  // 同步状态检查
-  checkStatus: function() {
-    var self = this;
-    return fetch(this._url()).then(function(res) {
-      self._syncOk = res.ok;
+  // 验证 token 是否有效
+  verifyToken: function(token) {
+    return fetch('https://api.github.com/user', {
+      headers: { 'Authorization': 'Bearer ' + token }
+    }).then(function(res) {
       return res.ok;
     }).catch(function() {
-      self._syncOk = false;
       return false;
     });
   },
@@ -105,29 +129,22 @@ var Sync = {
   _syncOk: null,
 
   // === 密码管理 ===
-
-  // 获取密码哈希（共享存储 > 本地 > 默认密码哈希）
   getPassword: function() {
     var self = this;
     return this.readRaw().then(function(data) {
       if (data && data.password) {
-        // 同时存一份到本地
         try { localStorage.setItem('dm_admin_pw', data.password); } catch(e) {}
         return data.password;
       }
-      // 无共享密码时返回 null（admin.html 会用默认密码）
       return null;
     }).catch(function() {
       return null;
     });
   },
 
-  // 设置密码哈希（写入共享存储 + 本地）
   setPassword: function(hash) {
     var self = this;
-    // 先存本地
     try { localStorage.setItem('dm_admin_pw', hash); } catch(e) {}
-    // 再写共享
     return this.readRaw().then(function(data) {
       if (!data) data = { codes: {} };
       data.password = hash;
@@ -139,13 +156,9 @@ var Sync = {
   },
 
   // === 解锁码管理 ===
-
-  // 添加新解锁码（始终写本地 + 尝试写共享）
   addCode: function(code) {
     var self = this;
-    // 先写本地，保证面板立即可见
     self._localAdd(code, false);
-    // 再尝试写共享存储
     return this.readRaw().then(function(data) {
       if (!data) data = { codes: {} };
       if (!data.codes) data.codes = {};
@@ -155,11 +168,10 @@ var Sync = {
       }
       return true;
     }).catch(function(e) {
-      console.warn('Sync.addCode shared write failed:', e.message);
+      console.warn('Sync.addCode write failed:', e.message);
     });
   },
 
-  // 激活解锁码（先写本地，再写共享）
   activateCode: function(code) {
     var self = this;
     self._localActivate(code);
@@ -169,11 +181,10 @@ var Sync = {
       data.codes[code].activatedAt = Date.now();
       return self._writeRaw(data);
     }).catch(function(e) {
-      console.warn('Sync.activateCode shared write failed:', e.message);
+      console.warn('Sync.activateCode write failed:', e.message);
     });
   },
 
-  // 停用解锁码
   deactivateCode: function(code) {
     var self = this;
     self._localDeactivate(code);
@@ -183,11 +194,10 @@ var Sync = {
       delete data.codes[code].activatedAt;
       return self._writeRaw(data);
     }).catch(function(e) {
-      console.warn('Sync.deactivateCode shared write failed:', e.message);
+      console.warn('Sync.deactivateCode write failed:', e.message);
     });
   },
 
-  // 检查码是否已激活（先查共享，再查本地）
   isActivated: function(code) {
     return this.read().then(function(codes) {
       if (codes[code] && codes[code].activated) return true;
@@ -207,7 +217,6 @@ var Sync = {
     });
   },
 
-  // 标记码已使用
   markUsed: function(code) {
     var self = this;
     self._localMarkUsed(code);
@@ -217,7 +226,7 @@ var Sync = {
       data.codes[code].usedAt = Date.now();
       return self._writeRaw(data);
     }).catch(function(e) {
-      console.warn('Sync.markUsed shared write failed:', e.message);
+      console.warn('Sync.markUsed write failed:', e.message);
     });
   },
 
@@ -245,49 +254,47 @@ var Sync = {
   },
 
   _localAdd: function(code, activated) {
-    if (typeof Renderer === 'undefined' || !Renderer._getIssuedCodes) return;
-    var issued = Renderer._getIssuedCodes();
-    issued.push({ code: code, time: Date.now(), activated: !!activated, used: false });
-    localStorage.setItem('dm_issued_codes', JSON.stringify(issued));
+    try {
+      var raw = localStorage.getItem('dm_issued_codes');
+      var list = raw ? JSON.parse(raw) : [];
+      list.push({ code: code, time: Date.now(), activated: !!activated, used: false });
+      localStorage.setItem('dm_issued_codes', JSON.stringify(list));
+    } catch(e) {}
   },
 
   _localActivate: function(code) {
-    if (typeof Renderer === 'undefined' || !Renderer._getActivatedCodes) return;
-    var activated = Renderer._getActivatedCodes();
-    if (activated.indexOf(code) === -1) {
-      activated.push(code);
-      localStorage.setItem('dm_activated_codes', JSON.stringify(activated));
-    }
-    var issued = Renderer._getIssuedCodes();
-    var f = null;
-    for (var i = 0; i < issued.length; i++) {
-      if (issued[i].code === code) { f = issued[i]; break; }
-    }
-    if (f) { f.activated = true; f.activatedAt = Date.now(); }
-    localStorage.setItem('dm_issued_codes', JSON.stringify(issued));
+    try {
+      var raw = localStorage.getItem('dm_issued_codes');
+      if (!raw) return;
+      var list = JSON.parse(raw);
+      for (var i = 0; i < list.length; i++) {
+        if (list[i].code === code) { list[i].activated = true; list[i].activatedAt = Date.now(); break; }
+      }
+      localStorage.setItem('dm_issued_codes', JSON.stringify(list));
+    } catch(e) {}
   },
 
   _localDeactivate: function(code) {
-    if (typeof Renderer === 'undefined' || !Renderer._getActivatedCodes) return;
-    var activated = Renderer._getActivatedCodes().filter(function(c) { return c !== code; });
-    localStorage.setItem('dm_activated_codes', JSON.stringify(activated));
-    var issued = Renderer._getIssuedCodes();
-    var f = null;
-    for (var i = 0; i < issued.length; i++) {
-      if (issued[i].code === code) { f = issued[i]; break; }
-    }
-    if (f) { f.activated = false; delete f.activatedAt; }
-    localStorage.setItem('dm_issued_codes', JSON.stringify(issued));
+    try {
+      var raw = localStorage.getItem('dm_issued_codes');
+      if (!raw) return;
+      var list = JSON.parse(raw);
+      for (var i = 0; i < list.length; i++) {
+        if (list[i].code === code) { list[i].activated = false; delete list[i].activatedAt; break; }
+      }
+      localStorage.setItem('dm_issued_codes', JSON.stringify(list));
+    } catch(e) {}
   },
 
   _localMarkUsed: function(code) {
-    if (typeof Renderer === 'undefined' || !Renderer._getIssuedCodes) return;
-    var issued = Renderer._getIssuedCodes();
-    var f = null;
-    for (var i = 0; i < issued.length; i++) {
-      if (issued[i].code === code) { f = issued[i]; break; }
-    }
-    if (f) { f.used = true; f.usedAt = Date.now(); }
-    localStorage.setItem('dm_issued_codes', JSON.stringify(issued));
+    try {
+      var raw = localStorage.getItem('dm_issued_codes');
+      if (!raw) return;
+      var list = JSON.parse(raw);
+      for (var i = 0; i < list.length; i++) {
+        if (list[i].code === code) { list[i].used = true; list[i].usedAt = Date.now(); break; }
+      }
+      localStorage.setItem('dm_issued_codes', JSON.stringify(list));
+    } catch(e) {}
   },
 };
