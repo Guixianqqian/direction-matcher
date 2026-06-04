@@ -1,4 +1,4 @@
-// ============================================
+﻿// ============================================
 // 方向匹配器 — 核心应用逻辑
 // 架构: Store(状态) → Matcher(算法) → Render(视图)
 // 版本: v1.0.0 MVP
@@ -603,39 +603,24 @@ const Renderer = {
           </button>
         </div>
 
-        <!-- 第二步：加微信激活（初始隐藏） -->
+        <!-- 第二步：等待客服激活（初始隐藏） -->
         <div id="codeStep" style="display:none;">
-          <h3>🎉 最后一步</h3>
+          <h3>🎉 已收到你的支付</h3>
+          <p style="font-size:0.82rem;color:var(--color-text-secondary);margin-bottom:12px;">
+            客服正在为你激活，请稍候…
+          </p>
 
           <div class="code-reveal-box">
             <p class="code-reveal-label">🔑 你的解锁码</p>
             <p class="code-reveal-value" id="revealedCode"></p>
-            <p class="code-reveal-status" id="codeStatus">⏳ 待激活</p>
+            <p class="code-reveal-status" id="codeStatus">⏳ 等待激活</p>
             <button class="btn-copy-inline" id="copyCodeBtn">📋 复制解锁码</button>
           </div>
 
-          <!-- 微信激活引导 -->
-          <div class="activate-guide">
-            <div class="qr-box qr-box--medium" id="wechatContactQR">
-              <p style="color:var(--color-text-muted);">加载中...</p>
-            </div>
-            <p class="activate-title">📱 扫码添加客服微信</p>
-            <p class="activate-desc">发送你的解锁码和<strong>付款截图</strong>，客服激活后即可解锁</p>
-          </div>
-
           <div class="verify-section" style="margin-top:16px;">
-            <p class="verify-label" style="margin-bottom:6px;">方式一：输入解锁码（管理员激活后自动生效）</p>
+            <p class="verify-label" style="margin-bottom:6px;">输入解锁码（客服激活后自动生效）</p>
             <input type="text" class="verify-input" id="verifyInput"
                    placeholder="输入 4 位解锁码" maxlength="4" autocomplete="off" inputmode="numeric">
-            <div style="text-align:center;margin:12px 0;">
-              <span style="display:inline-block;width:40px;height:1px;background:var(--color-border, rgba(255,255,255,0.08));vertical-align:middle;"></span>
-              <span style="margin:0 12px;font-size:0.75rem;color:var(--color-text-muted, #606080);">或者</span>
-              <span style="display:inline-block;width:40px;height:1px;background:var(--color-border, rgba(255,255,255,0.08));vertical-align:middle;"></span>
-            </div>
-            <p class="verify-label" style="margin-bottom:6px;">方式二：输入管理员发给你的 6 位激活密钥</p>
-            <input type="text" class="verify-input" id="activateKeyInput"
-                   placeholder="输入 6 位激活密钥" maxlength="6" autocomplete="off"
-                   style="text-transform:uppercase;letter-spacing:0.15em;" inputmode="text">
             <p class="verify-error" id="verifyError" style="display:none;"></p>
           </div>
 
@@ -644,7 +629,7 @@ const Renderer = {
           </button>
 
           <p style="text-align:center;font-size:0.72rem;color:var(--color-text-muted);margin-top:8px;">
-            ⏱️ 一般 5 分钟内激活 · 激活后解锁码永久有效
+            ⏱️ 客服一般 5 分钟内激活 · 激活后解锁码永久有效
           </p>
         </div>
       </div>
@@ -670,7 +655,7 @@ const Renderer = {
     };
     loadQR('wechat', 'wechatQR');
     loadQR('alipay', 'alipayQR');
-    loadQR('wechat-contact', 'wechatContactQR');
+
 
     // 关闭 & 清理
     const closeModal = () => {
@@ -688,33 +673,11 @@ const Renderer = {
     const codeStatus = overlay.querySelector('#codeStatus');
     const copyCodeBtn = overlay.querySelector('#copyCodeBtn');
     const verifyInput = overlay.querySelector('#verifyInput');
-    const activateKeyInput = overlay.querySelector('#activateKeyInput');
     const confirmBtn = overlay.querySelector('#confirmPayBtn');
     const verifyError = overlay.querySelector('#verifyError');
 
-    // 激活密钥：离线方案，不依赖网络
-    // 原理：管理员后台用同样算法生成密钥 → 微信发给用户 → 用户输入 → 本地验证
-    const generateActivationKey = function(code) {
-      var h = 0;
-      var str = code + 'dm_secret_2026';
-      for (var i = 0; i < str.length; i++) {
-        h = ((h << 5) - h + str.charCodeAt(i)) | 0;
-        h = (h * 16777619) | 0;
-      }
-      return Math.abs(h).toString(36).substring(0, 6).toUpperCase();
-    };
-
-    const verifyActivationKey = function(code, key) {
-      return generateActivationKey(code) === key.toUpperCase().trim();
-    };
-
-    // 检查码是否已激活（离线密钥 OR 共享存储）
+    // 检查码是否已激活（通过共享存储）
     const isActivated = async function(code) {
-      // 离线密钥激活（localStorage 记录）
-      var localKeys = {};
-      try { localKeys = JSON.parse(localStorage.getItem('dm_local_keys') || '{}'); } catch(e) {}
-      if (localKeys[code]) return true;
-      // 共享存储兜底
       try { return await Sync.isActivated(code); } catch(e) { return false; }
     };
 
@@ -723,28 +686,23 @@ const Renderer = {
       if (!currentCode) return;
       const activated = await isActivated(currentCode);
       const inputVal = verifyInput.value.trim();
-      const keyVal = activateKeyInput ? activateKeyInput.value.trim() : '';
-      const keyValid = keyVal.length === 6 && verifyActivationKey(currentCode, keyVal);
 
       if (activated) {
         codeStatus.textContent = '✅ 已激活';
         codeStatus.className = 'code-reveal-status code-active';
-      } else if (keyValid) {
-        codeStatus.textContent = '🔑 密钥有效';
-        codeStatus.className = 'code-reveal-status code-active';
       } else {
-        codeStatus.textContent = '⏳ 待激活';
+        codeStatus.textContent = '⏳ 等待激活';
         codeStatus.className = 'code-reveal-status code-pending';
       }
 
-      if ((inputVal === currentCode && activated) || keyValid) {
+      if (inputVal === currentCode && activated) {
         confirmBtn.disabled = false;
         confirmBtn.textContent = '✅ 解锁完整报告';
         confirmBtn.classList.add('btn-verified');
         verifyError.style.display = 'none';
-      } else if (inputVal === currentCode && !activated && !keyValid) {
+      } else if (inputVal === currentCode && !activated) {
         confirmBtn.disabled = true;
-        verifyError.textContent = '解锁码尚未激活，请添加客服微信发送付款截图，或输入管理员给你的激活密钥';
+        verifyError.textContent = '解锁码尚未激活，请稍候…客服正在处理中';
         verifyError.style.display = 'block';
       } else if (inputVal.length >= 2 && inputVal !== currentCode) {
         confirmBtn.disabled = true;
@@ -790,26 +748,14 @@ const Renderer = {
 
     // 解锁码输入
     verifyInput.addEventListener('input', function() { updateUnlockState(); });
-    activateKeyInput.addEventListener('input', function() { updateUnlockState(); });
 
-    // 解锁（支持激活密钥路径）
+    // 解锁（仅管理员激活后可用）
     confirmBtn.addEventListener('click', async function() {
       var codeMatch = verifyInput.value.trim() === currentCode;
-      var keyVal = activateKeyInput.value.trim();
-      var keyValid = keyVal.length === 6 && verifyActivationKey(currentCode, keyVal);
       var activated = await isActivated(currentCode);
 
-      if ((codeMatch && activated) || keyValid) {
+      if (codeMatch && activated) {
         clearInterval(pollTimer);
-
-        // 如果是密钥激活，保存到本地
-        if (keyValid && !activated) {
-          var localKeys = {};
-          try { localKeys = JSON.parse(localStorage.getItem('dm_local_keys') || '{}'); } catch(e) {}
-          localKeys[currentCode] = true;
-          localStorage.setItem('dm_local_keys', JSON.stringify(localKeys));
-        }
-
         try { Sync.markUsed(currentCode); } catch(e) {}
         Store.dispatch('UNLOCK');
         overlay.remove();
@@ -817,10 +763,10 @@ const Renderer = {
         setTimeout(() => {
           const toast = document.createElement('div');
           toast.className = 'unlock-toast';
-          toast.innerHTML = '🔓 解锁成功！好好利用这份报告，有任何问题随时微信找我 👋';
+          toast.innerHTML = '🔓 解锁成功！这份报告是你探索的起点。选一个方向，迈出第一步，哪怕很小——未来的你会感谢今天这个决定 🌱';
           document.body.appendChild(toast);
           setTimeout(() => { toast.classList.add('show'); }, 50);
-          setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 400); }, 2500);
+          setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 400); }, 3500);
         }, 300);
       }
     });
@@ -863,16 +809,18 @@ const Renderer = {
     localStorage.setItem('dm_issued_codes', JSON.stringify(issued));
   },
 
-  // === 生成分享卡片 ===
-  SITE_URL: 'https://www.topxnc.com', // 部署后改这里
+  // === 生成分享卡片（内联显示，支持微信长按保存） ===
+  SITE_URL: 'https://www.topxnc.com',
 
   generateShareCard(state) {
     const canvas = document.getElementById('shareCanvas');
     const ctx = canvas.getContext('2d');
     const top3 = state.results.slice(0, 3);
+    const self = this;
 
-    // 先画背景和文字（QR 码异步加载后再画）
+    // 绘制卡片
     const drawBase = () => {
+      // 背景渐变
       const gradient = ctx.createLinearGradient(0, 0, 0, 1200);
       gradient.addColorStop(0, '#0f0c29');
       gradient.addColorStop(0.5, '#302b63');
@@ -880,99 +828,122 @@ const Renderer = {
       ctx.fillStyle = gradient;
       ctx.fillRect(0, 0, 800, 1200);
 
+      // 顶部装饰线
+      ctx.fillStyle = 'rgba(124,92,252,0.4)';
+      ctx.fillRect(0, 0, 800, 4);
+
+      // 标题
       ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 42px "PingFang SC", "Microsoft YaHei", sans-serif';
+      ctx.font = 'bold 44px "PingFang SC", "Microsoft YaHei", sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText(t('dnaCardTitle'), 400, 80);
+      ctx.fillText('🧭 我的赚钱DNA', 400, 80);
 
-      ctx.font = '20px "PingFang SC", "Microsoft YaHei", sans-serif';
+      ctx.font = '18px "PingFang SC", "Microsoft YaHei", sans-serif';
       ctx.fillStyle = '#a0a0cc';
-      ctx.fillText(t('dnaCardSub'), 400, 120);
+      ctx.fillText('方向匹配器 · 个性化赚钱方向报告', 400, 118);
 
+      // 分隔线
+      ctx.strokeStyle = 'rgba(124,92,252,0.25)';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(60, 145);
+      ctx.lineTo(740, 145);
+      ctx.stroke();
+
+      // Top 3 结果
       const medals = ['🥇', '🥈', '🥉'];
+      const colors = ['#ffd700', '#c0c0c0', '#cd7f32'];
       top3.forEach((match, i) => {
-        const y = 200 + i * 280;
-        ctx.fillStyle = i === 0 ? 'rgba(255,215,0,0.15)' : 'rgba(255,255,255,0.08)';
-        ctx.strokeStyle = i === 0 ? 'rgba(255,215,0,0.3)' : 'rgba(255,255,255,0.15)';
+        const y = 175 + i * 270;
+        
+        // 卡片背景
+        ctx.fillStyle = i === 0 ? 'rgba(255,215,0,0.08)' : 'rgba(255,255,255,0.04)';
+        ctx.strokeStyle = i === 0 ? 'rgba(255,215,0,0.25)' : 'rgba(255,255,255,0.1)';
         ctx.lineWidth = 1;
-        roundRect(ctx, 40, y, 720, 260, 16);
-        ctx.fill(); ctx.stroke();
+        roundRect(ctx, 50, y, 700, 250, 14);
+        ctx.fill();
+        ctx.stroke();
 
+        // 排名 + 赛道名
         ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 28px "PingFang SC", "Microsoft YaHei", sans-serif';
+        ctx.font = 'bold 26px "PingFang SC", "Microsoft YaHei", sans-serif';
         ctx.textAlign = 'left';
-        ctx.fillText(`${medals[i]} 第 ${i + 1} 名`, 70, y + 45);
+        ctx.fillText(`${medals[i]}  ${match.track.name}`, 75, y + 42);
 
-        // 赛道名（截断过长名字）
-        let trackName = match.track.name;
-        ctx.font = 'bold 28px "PingFang SC", "Microsoft YaHei", sans-serif';
-        const maxNameWidth = 500;
-        while (ctx.measureText(trackName).width > maxNameWidth && trackName.length > 2) {
-          trackName = trackName.slice(0, -2) + '…';
-        }
-        ctx.fillText(trackName, 70, y + 88);
-
-        ctx.fillStyle = '#ffd700';
-        ctx.font = 'bold 22px "PingFang SC", "Microsoft YaHei", sans-serif';
+        // 匹配度
+        ctx.fillStyle = colors[i];
+        ctx.font = 'bold 26px "PingFang SC", "Microsoft YaHei", sans-serif';
         ctx.textAlign = 'right';
-        ctx.fillText(`${match.score}%`, 740, y + 88);
+        ctx.fillText(`${match.score}% 匹配`, 725, y + 42);
 
-        ctx.fillStyle = '#cccccc';
+        // 收入和周期标签
+        ctx.fillStyle = '#b0b0d0';
         ctx.font = '16px "PingFang SC", "Microsoft YaHei", sans-serif';
         ctx.textAlign = 'left';
-        ctx.fillText(`💰 ${match.track.income}`, 70, y + 125);
-        ctx.fillText(`⏱️ ${match.track.timeToStart}`, 70, y + 150);
+        ctx.fillText(`💰 ${match.track.income}`, 75, y + 78);
+        ctx.fillText(`⏱️ ${match.track.timeToStart}`, 250, y + 78);
 
-        ctx.fillStyle = '#a0a0cc';
+        // 匹配原因（最多2条）
+        ctx.fillStyle = '#9090b8';
         ctx.font = '15px "PingFang SC", "Microsoft YaHei", sans-serif';
         match.details.slice(0, 2).forEach((d, j) => {
-          // 截断过长详情
           let detail = d;
-          while (ctx.measureText(detail).width > 660 && detail.length > 2) {
-            detail = detail.slice(0, -2) + '…';
-          }
-          ctx.fillText(`• ${detail}`, 70, y + 185 + j * 28);
+          if (detail.length > 38) detail = detail.slice(0, 36) + '…';
+          ctx.fillText(`✓ ${detail}`, 75, y + 112 + j * 30);
         });
       });
 
-      // 底部引导文字 + QR区域
-      const qrY = 1020;
+      // 底部
+      const qrY = 1000;
+      ctx.fillStyle = 'rgba(255,255,255,0.06)';
+      ctx.fillRect(50, qrY - 10, 700, 190);
+
       ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 20px "PingFang SC", "Microsoft YaHei", sans-serif';
+      ctx.font = 'bold 22px "PingFang SC", "Microsoft YaHei", sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('扫码测测你的赚钱方向 →', 400, qrY);
+      ctx.fillText('扫码测测你的赚钱方向 →', 400, qrY + 35);
+
+      ctx.fillStyle = '#9090b0';
+      ctx.font = '15px "PingFang SC", "Microsoft YaHei", sans-serif';
+      ctx.fillText('www.topxnc.com', 400, qrY + 62);
     };
 
-    // 加载真实 QR 码
+    // 加载 QR 码
     const qrImg = new Image();
     qrImg.crossOrigin = 'anonymous';
-    qrImg.src = `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${encodeURIComponent(this.SITE_URL)}&margin=8`;
+    qrImg.src = 'https://api.qrserver.com/v1/create-qr-code/?size=130x130&data=' + encodeURIComponent(this.SITE_URL) + '&margin=8';
     qrImg.onload = () => {
       drawBase();
-      // QR 码居中（1020 + 15 = 1035, height 150 → 1185, fits in 1200 canvas）
-      ctx.drawImage(qrImg, 325, 1040, 150, 150);
-      this.downloadCard(canvas);
+      ctx.drawImage(qrImg, 335, 1035, 130, 130);
+      self.showCardModal(canvas);
     };
     qrImg.onerror = () => {
-      // QR 加载失败，用域名文字代替
       drawBase();
-      ctx.fillStyle = '#ffffff';
-      ctx.fillRect(280, 1040, 240, 60);
       ctx.fillStyle = '#7c5cfc';
       ctx.font = 'bold 16px "PingFang SC", "Microsoft YaHei", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(this.SITE_URL, 400, 1080);
-      this.downloadCard(canvas);
+      ctx.fillText('www.topxnc.com', 400, 1100);
+      self.showCardModal(canvas);
     };
   },
 
-  downloadCard(canvas) {
-    canvas.style.display = 'block';
-    const link = document.createElement('a');
-    link.download = '我的赚钱DNA.png';
-    link.href = canvas.toDataURL('image/png');
-    link.click();
-    canvas.style.display = 'none';
+  // 弹窗展示卡片（支持微信长按保存）
+  showCardModal(canvas) {
+    const dataUrl = canvas.toDataURL('image/png');
+    const overlay = document.createElement('div');
+    overlay.className = 'modal-overlay';
+    overlay.style.zIndex = '2000';
+    overlay.innerHTML = '<div class="modal modal--wide" style="max-width:90vw;padding:16px;background:transparent;border:none;">' +
+      '<button class="modal-close" style="color:#fff;background:rgba(0,0,0,0.5);border-radius:50%;width:36px;height:36px;line-height:36px;text-align:center;position:absolute;top:8px;right:8px;z-index:10;">&times;</button>' +
+      '<p style="text-align:center;color:#fff;font-size:0.85rem;margin-bottom:8px;">👇 长按图片保存到相册</p>' +
+      '<img src="' + dataUrl + '" alt="赚钱DNA" style="width:100%;border-radius:12px;display:block;" />' +
+      '<p style="text-align:center;color:#a0a0cc;font-size:0.75rem;margin-top:8px;">分享到朋友圈，让朋友也来测测 →</p>' +
+      '</div>';
+
+    document.body.appendChild(overlay);
+
+    const closeModal = () => overlay.remove();
+    overlay.querySelector('.modal-close').addEventListener('click', closeModal);
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
   },
 
   // === 管理后台 ===
@@ -1017,20 +988,7 @@ const Renderer = {
           <h2>🎯 热门结果 Top 10</h2>
           <table class="admin-table"><thead><tr><th>赛道</th><th>次数</th></tr></thead><tbody>${topR.map(([n,c])=>`<tr><td>${n}</td><td>${c}</td></tr>`).join('')||'<tr><td colspan="2">暂无数据</td></tr>'}</tbody></table>
         </div>
-        <div class="admin-section">
-          <h2>🔧 手动激活（离线）</h2>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center;">
-            <input type="text" class="verify-input" id="manualCodeInput"
-                   placeholder="输入用户解锁码" maxlength="4" autocomplete="off"
-                   style="width:140px;text-align:center;">
-            <button class="btn btn-gold btn-sm" id="genKeyBtn">🔑 生成激活密钥</button>
-          </div>
-          <div id="genKeyResult" style="text-align:center;margin-top:12px;display:none;">
-            <p style="font-size:0.78rem;color:var(--color-text-muted, #606080);">将此密钥通过微信发给用户</p>
-            <p style="font-size:2rem;font-weight:900;letter-spacing:0.3em;color:var(--color-accent, #7c5cfc);font-family:monospace;" id="genKeyValue"></p>
-            <button class="btn-copy-inline btn-sm" id="copyKeyBtn">📋 复制密钥</button>
-          </div>
-        </div>
+
         <div class="admin-section">
           <h2>🔑 解锁码签发记录</h2>
           <div id="codesTableContainer" style="text-align:center;color:var(--color-text-muted, #606080);">加载中...</div>
@@ -1057,31 +1015,13 @@ const Renderer = {
     document.getElementById('logoutBtn').addEventListener('click',()=>{sessionStorage.removeItem('dm_admin_auth');window.location.href='/';});
     document.getElementById('clearBtn').addEventListener('click',()=>{if(confirm('确定清除全部数据？不可恢复。')){Analytics.clearData();this.renderAdmin();}});
 
-    // 手动激活密钥生成
-    document.getElementById('genKeyBtn').addEventListener('click', function() {
-      var code = document.getElementById('manualCodeInput').value.trim();
-      if (!code || code.length < 4) return;
-      var h = 0;
-      var str = code + 'dm_secret_2026';
-      for (var i = 0; i < str.length; i++) {
-        h = ((h << 5) - h + str.charCodeAt(i)) | 0;
-        h = (h * 16777619) | 0;
-      }
-      var key = Math.abs(h).toString(36).substring(0, 6).toUpperCase();
-      document.getElementById('genKeyValue').textContent = key;
-      document.getElementById('genKeyResult').style.display = 'block';
-    });
-    document.getElementById('copyKeyBtn').addEventListener('click', function() {
-      var key = document.getElementById('genKeyValue').textContent;
-      var btn = document.getElementById('copyKeyBtn');
-      copyToClipboard(key, function() {
-        btn.textContent = '✅ 已复制';
-        setTimeout(function() { btn.textContent = '📋 复制密钥'; }, 2000);
-      });
-    });
 
-    // 异步加载解锁码表
+
+    // 异步加载解锁码表 + 自动刷新
     this._renderCodesTable();
+    // 每 10 秒自动刷新解锁码列表
+    if (this._codesRefreshTimer) clearInterval(this._codesRefreshTimer);
+    this._codesRefreshTimer = setInterval(() => this._renderCodesTable(), 10000);
   },
 
   async _renderCodesTable() {
