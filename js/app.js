@@ -933,24 +933,49 @@ const Renderer = {
     };
   },
 
-  // 弹窗展示卡片（支持微信长按保存）
+  // 弹窗展示卡片（桌面端下载 / 手机端长按保存）
   showCardModal(canvas) {
     const dataUrl = canvas.toDataURL('image/png');
+    const isMobile = window.innerWidth < 768;
     const overlay = document.createElement('div');
     overlay.className = 'modal-overlay';
     overlay.style.zIndex = '2000';
-    overlay.innerHTML = '<div class="modal modal--wide" style="max-width:90vw;padding:16px;background:transparent;border:none;">' +
-      '<button class="modal-close" style="color:#fff;background:rgba(0,0,0,0.5);border-radius:50%;width:36px;height:36px;line-height:36px;text-align:center;position:absolute;top:8px;right:8px;z-index:10;">&times;</button>' +
-      '<p style="text-align:center;color:#fff;font-size:0.85rem;margin-bottom:8px;">👇 长按图片保存到相册</p>' +
-      '<img src="' + dataUrl + '" alt="赚钱DNA" style="width:100%;border-radius:12px;display:block;" />' +
-      '<p style="text-align:center;color:#a0a0cc;font-size:0.75rem;margin-top:8px;">分享到朋友圈，让朋友也来测测 →</p>' +
-      '</div>';
+
+    if (isMobile) {
+      // 手机：长按保存
+      overlay.innerHTML = '<div class="modal" style="max-width:96vw;padding:12px;background:transparent;border:none;">' +
+        '<button class="modal-close" style="color:#fff;background:rgba(0,0,0,0.5);border-radius:50%;width:36px;height:36px;line-height:36px;text-align:center;position:absolute;top:4px;right:4px;z-index:10;">&times;</button>' +
+        '<p style="text-align:center;color:#fff;font-size:0.8rem;margin-bottom:6px;">👇 长按图片保存到相册</p>' +
+        '<img src="' + dataUrl + '" alt="赚钱DNA" style="width:100%;border-radius:10px;display:block;" />' +
+        '<p style="text-align:center;color:#a0a0cc;font-size:0.7rem;margin-top:6px;">分享到朋友圈，让朋友也来测测 →</p>' +
+        '</div>';
+    } else {
+      // 桌面：尺寸约束 + 下载按钮
+      overlay.innerHTML = '<div class="modal" style="max-width:420px;padding:16px;background:#1a1a2e;border:1px solid var(--color-border);border-radius:var(--radius-lg);">' +
+        '<button class="modal-close" style="position:absolute;top:8px;right:12px;">&times;</button>' +
+        '<h3 style="text-align:center;margin-bottom:10px;">🧬 我的赚钱DNA</h3>' +
+        '<img src="' + dataUrl + '" alt="赚钱DNA" style="width:100%;max-height:60vh;object-fit:contain;border-radius:8px;display:block;" />' +
+        '<button class="btn btn-gold btn-lg" id="downloadCardBtn" style="width:100%;margin-top:12px;">📥 下载图片</button>' +
+        '<p style="text-align:center;color:var(--color-text-muted);font-size:0.7rem;margin-top:6px;">分享到朋友圈，让朋友也来测测 →</p>' +
+        '</div>';
+    }
 
     document.body.appendChild(overlay);
 
     const closeModal = () => overlay.remove();
     overlay.querySelector('.modal-close').addEventListener('click', closeModal);
     overlay.addEventListener('click', (e) => { if (e.target === overlay) closeModal(); });
+
+    // 桌面端下载按钮
+    const dlBtn = overlay.querySelector('#downloadCardBtn');
+    if (dlBtn) {
+      dlBtn.addEventListener('click', () => {
+        const link = document.createElement('a');
+        link.download = '我的赚钱DNA.png';
+        link.href = dataUrl;
+        link.click();
+      });
+    }
   },
 
   // === 管理后台 ===
