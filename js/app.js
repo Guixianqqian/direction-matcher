@@ -900,35 +900,41 @@ const Renderer = {
         });
       });
 
-      // 底部
-      const qrY = 1000;
+      // 底部：文字在上，QR在下
+      const qrY = 1010;
       ctx.fillStyle = 'rgba(255,255,255,0.06)';
-      ctx.fillRect(50, qrY - 10, 700, 190);
+      ctx.fillRect(50, qrY - 15, 700, 195);
 
+      // 引导文字（QR上方）
       ctx.fillStyle = '#ffffff';
-      ctx.font = 'bold 22px "PingFang SC", "Microsoft YaHei", sans-serif';
+      ctx.font = 'bold 20px "PingFang SC", "Microsoft YaHei", sans-serif';
       ctx.textAlign = 'center';
-      ctx.fillText('扫码测测你的赚钱方向 →', 400, qrY + 35);
+      ctx.fillText('扫码测测你的赚钱方向 →', 400, qrY + 10);
 
       ctx.fillStyle = '#9090b0';
-      ctx.font = '15px "PingFang SC", "Microsoft YaHei", sans-serif';
-      ctx.fillText('www.topxnc.com', 400, qrY + 62);
+      ctx.font = '13px "PingFang SC", "Microsoft YaHei", sans-serif';
+      ctx.fillText('www.topxnc.com', 400, qrY + 32);
     };
 
-    // 加载 QR 码
+    // 加载 QR 码（放在文字下方，不重叠）
     const qrImg = new Image();
     qrImg.crossOrigin = 'anonymous';
-    qrImg.src = 'https://api.qrserver.com/v1/create-qr-code/?size=130x130&data=' + encodeURIComponent(this.SITE_URL) + '&margin=8';
+    qrImg.src = 'https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=' + encodeURIComponent(this.SITE_URL) + '&margin=6';
     qrImg.onload = () => {
       drawBase();
-      ctx.drawImage(qrImg, 335, 1035, 130, 130);
+      // QR: y=1060, 文字在y=1020-1042，不重叠
+      ctx.drawImage(qrImg, 340, 1060, 120, 120);
       self.showCardModal(canvas);
     };
     qrImg.onerror = () => {
       drawBase();
+      // 降级：域名占位
+      ctx.fillStyle = 'rgba(124,92,252,0.15)';
+      ctx.fillRect(280, 1060, 240, 120);
       ctx.fillStyle = '#7c5cfc';
-      ctx.font = 'bold 16px "PingFang SC", "Microsoft YaHei", sans-serif';
-      ctx.fillText('www.topxnc.com', 400, 1100);
+      ctx.font = 'bold 32px "PingFang SC", "Microsoft YaHei", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('🧭 方向匹配器', 400, 1130);
       self.showCardModal(canvas);
     };
   },
@@ -990,7 +996,7 @@ const Renderer = {
     this.root.innerHTML = `
       <div class="page admin-page">
         <h1>📊 方向匹配器 · 数据后台</h1>
-        <p style="text-align:center;color:var(--color-text-muted);">所有数据存储在本地浏览器，不会上传</p>
+        ${localStorage.getItem('dm_gh_token') ? '' : '<div style="background:rgba(240,185,11,0.1);border:1px solid rgba(240,185,11,0.3);border-radius:8px;padding:10px 14px;margin-bottom:12px;text-align:center;"><p style="color:#f0b90b;font-size:0.82rem;font-weight:600;">⚠️ 跨设备同步未启用</p><p style="color:#9090b0;font-size:0.72rem;">其他设备的解锁码无法同步到此面板<br>请点击下方「🔗 跨设备同步」设置 GitHub Token</p></div>'}
         <div class="admin-section">
           <h2>📈 转化漏斗（累计）</h2>
           <div class="funnel-grid">
