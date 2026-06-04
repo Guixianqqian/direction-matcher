@@ -11,7 +11,8 @@
     },
     "5572": {
       "time": 1780562801754,
-      "activated": false
+      "activated": true,
+      "activatedAt": 1780562912248
     },
     "6005": {
       "time": 1780561889377,
