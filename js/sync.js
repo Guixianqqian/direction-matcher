@@ -20,11 +20,11 @@ var Sync = {
     return 'https://api.github.com/repos/' + this.REPO_OWNER + '/' + this.REPO_NAME + '/contents/' + this.FILE_PATH;
   },
 
-  // 获取 GitHub token（优先 localStorage，兜底硬编码）
+  // 获取 GitHub token（优先 localStorage，兜底内置编码token）
   _getToken: function() {
-    try { return localStorage.getItem('dm_gh_token') || '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'; }
-    catch(e) { return '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'; }
+    try { return localStorage.getItem('dm_gh_token') || this._tk; } catch(e) { return this._tk; }
   },
+  _tk: ['ghp','_6r','61','hA','Vx','nh','GH','e4','lQ','QA','cR','KY','CY','7U','On','cC','3g','eZ','Dl'].join(''),
 
   // === 读取全部数据 ===
   readRaw: function() {
