@@ -5,7 +5,10 @@
 // ============================================
 
 var Sync = {
-  BLOB_ID: '019e8d11-ecf2-7649-9b59-0f186efc44b0',
+  BLOB_ID: (function() {
+    try { return localStorage.getItem('dm_blob_id') || '019e8d11-ecf2-7649-9b59-0f186efc44b0'; }
+    catch(e) { return '019e8d11-ecf2-7649-9b59-0f186efc44b0'; }
+  })(),
   BASE_URL: 'https://jsonblob.com/api/jsonBlob',
   DEFAULT_PASSWORD: 'topxnc2026',
 
@@ -34,20 +37,72 @@ var Sync = {
     });
   },
 
-  // 写入全部数据
-  _writeRaw: function(data) {
+  // 写入全部数据（自动重建 blob 如果不存在）
+  _writeRaw: function(data, retry) {
+    var self = this;
+    if (typeof retry === 'undefined') retry = true;
     return fetch(this._url(), {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
     }).then(function(res) {
-      if (!res.ok) throw new Error('Sync write failed: ' + res.status);
+      if (!res.ok) {
+        if (res.status === 404 && retry) {
+          // Blob 不存在或过期 → 创建新的
+          console.warn('Sync: blob not found, creating new one...');
+          return self._createBlob(data);
+        }
+        throw new Error('Sync write failed: ' + res.status);
+      }
+      self._syncOk = true;
       return true;
     }).catch(function(e) {
-      console.warn('Sync._writeRaw failed:', e.message);
+      console.warn('Sync._writeRaw:', e.message);
+      self._syncOk = false;
       return false;
     });
   },
+
+  // 创建新 blob
+  _createBlob: function(data) {
+    var self = this;
+    return fetch(this.BASE_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    }).then(function(res) {
+      if (!res.ok) throw new Error('Create blob failed: ' + res.status);
+      // 从 Location header 提取新 ID
+      var loc = res.headers.get('Location') || '';
+      var parts = loc.split('/');
+      var newId = parts[parts.length - 1];
+      if (newId && newId.length > 10) {
+        self.BLOB_ID = newId;
+        try { localStorage.setItem('dm_blob_id', newId); } catch(e) {}
+        console.log('Sync: new blob created:', newId);
+      }
+      self._syncOk = true;
+      return true;
+    }).catch(function(e) {
+      console.warn('Sync._createBlob failed:', e.message);
+      self._syncOk = false;
+      return false;
+    });
+  },
+
+  // 同步状态检查
+  checkStatus: function() {
+    var self = this;
+    return fetch(this._url()).then(function(res) {
+      self._syncOk = res.ok;
+      return res.ok;
+    }).catch(function() {
+      self._syncOk = false;
+      return false;
+    });
+  },
+
+  _syncOk: null,
 
   // === 密码管理 ===
 

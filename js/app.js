@@ -997,7 +997,7 @@ const Renderer = {
         </div>
 
         <div class="admin-section">
-          <h2>🔑 解锁码签发记录</h2>
+          <h2>🔑 解锁码签发记录 <span id="syncStatus" style="font-size:0.7rem;color:var(--color-text-muted);"> </span></h2>
           <div id="codesTableContainer" style="text-align:center;color:var(--color-text-muted, #606080);">加载中...</div>
         </div>
         <div class="admin-section">
@@ -1026,9 +1026,10 @@ const Renderer = {
 
     // 异步加载解锁码表 + 自动刷新
     this._renderCodesTable();
+    this._updateSyncStatus();
     // 每 10 秒自动刷新解锁码列表
     if (this._codesRefreshTimer) clearInterval(this._codesRefreshTimer);
-    this._codesRefreshTimer = setInterval(() => this._renderCodesTable(), 10000);
+    this._codesRefreshTimer = setInterval(() => { this._renderCodesTable(); this._updateSyncStatus(); }, 10000);
   },
 
   async _renderCodesTable() {
@@ -1090,6 +1091,20 @@ const Renderer = {
       });
     } catch(e) {
       container.innerHTML = '<p style="text-align:center;color:var(--color-text-muted);">加载失败，请确认网络连接后刷新页面</p>';
+    }
+  },
+
+  // 同步状态指示
+  async _updateSyncStatus() {
+    const el = document.getElementById('syncStatus');
+    if (!el) return;
+    try {
+      const ok = await Sync.checkStatus();
+      el.textContent = ok ? '🟢 云端同步正常' : '🔴 云端未连接';
+      el.style.color = ok ? 'var(--color-success)' : '#ff4757';
+    } catch(e) {
+      el.textContent = '🔴 云端未连接';
+      el.style.color = '#ff4757';
     }
   },
 
